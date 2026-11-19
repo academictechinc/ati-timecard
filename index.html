@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b1f2a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Timecard">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<title>ATI Timecard</title>
+<style>
+:root{
+  --bg:#ece6d9; --card:#fffdf8; --ink:#1b1f2a; --ink2:#5b6170; --line:#d9d1c1;
+  --accent:#e8590c; --accent2:#ffb380; --ok:#2f7d4f; --warn:#b45309; --bad:#b42318;
+  --job:#23395d; --travel:#b7791f; --shop:#5a6b4f; --break:#8b9099; --pto:#7b4fa0; --holiday:#c2410c;
+  --mono: ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px}
+body{min-height:100vh;
+  background-image:repeating-linear-gradient(0deg,transparent 0 31px,rgba(27,31,42,.045) 31px 32px)}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+.hidden{display:none!important}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* top bar */
+.top{position:sticky;top:0;z-index:20;background:var(--ink);color:#fff;padding:calc(10px + var(--safe-t)) 14px 10px;display:flex;align-items:center;gap:10px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;font-size:15px}
+.brand .punch{width:22px;height:22px;border-radius:5px;background:var(--accent);display:grid;place-items:center;font-family:var(--mono);font-size:12px;color:var(--ink)}
+.top .who{margin-left:auto;font-size:14px;opacity:.85;text-align:right;line-height:1.15}
+.sync{display:flex;align-items:center;gap:6px;font-size:12px;opacity:.9}
+.dot{width:9px;height:9px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 3px rgba(74,222,128,.2)}
+.dot.pend{background:#fbbf24;box-shadow:0 0 0 3px rgba(251,191,36,.25)}
+.dot.off{background:#f87171;box-shadow:0 0 0 3px rgba(248,113,113,.25)}
+.iconbtn{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:rgba(255,255,255,.08)}
+
+/* week strip */
+.week{background:var(--card);border-bottom:2px solid var(--ink);padding:10px 10px 12px}
+.weeknav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.weeknav .lbl{font-weight:700;font-size:15px;text-align:center}
+.weeknav .lbl small{display:block;font-weight:500;color:var(--ink2);font-size:12px}
+.weeknav button{width:40px;height:36px;border-radius:9px;border:1.5px solid var(--line);font-size:18px;font-weight:700}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.day{border:1.5px solid var(--line);border-radius:10px;padding:6px 0 5px;text-align:center;background:#fff;position:relative}
+.day .dn{font-size:11px;font-weight:700;color:var(--ink2);text-transform:uppercase}
+.day .dd{font-size:18px;font-weight:800;line-height:1.2}
+.day .dh{font-family:var(--mono);font-size:11px;color:var(--ink2)}
+.day.today .dd{color:var(--accent)}
+.day.sel{background:var(--ink);border-color:var(--ink);color:#fff}
+.day.sel .dn,.day.sel .dh{color:#cfd3dc}
+.day .flag{position:absolute;top:4px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--bad)}
+.day.has .dh{color:var(--ink);font-weight:700}
+.day.sel.has .dh{color:#fff}
+
+/* day panel */
+main{padding:14px 12px calc(120px + var(--safe-b))}
+.dayhead{display:flex;align-items:flex-end;justify-content:space-between;margin:2px 4px 10px}
+.dayhead h2{margin:0;font-size:22px;letter-spacing:-.01em}
+.dayhead .tot{text-align:right}
+.dayhead .tot b{font-family:var(--mono);font-size:28px}
+.dayhead .tot small{display:block;font-size:12px;color:var(--ink2)}
+.entries{display:flex;flex-direction:column;gap:8px}
+.entry{display:flex;align-items:stretch;background:var(--card);border:1.5px solid var(--line);border-radius:12px;overflow:hidden;text-align:left;width:100%}
+.entry .bar{width:7px;flex:none}
+.entry .body{flex:1;padding:10px 12px;min-width:0}
+.entry .t1{font-weight:800;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.entry .t2{font-size:13px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.entry .hrs{padding:10px 14px;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;font-family:var(--mono);font-weight:800;font-size:20px}
+.entry .hrs small{font-size:11px;font-weight:500;color:var(--ink2)}
+.entry.unpaid .hrs{color:var(--ink2);text-decoration:line-through;text-decoration-thickness:1px}
+.pill{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:5px;margin-right:5px;vertical-align:1px}
+.pill.Job{background:#dfe6f2;color:var(--job)} .pill.Travel{background:#f8ebd2;color:#7a4f0f}
+.pill.Shop{background:#e3e9dd;color:var(--shop)} .pill.Break{background:#ececec;color:#555}
+.pill.PTO{background:#ece2f5;color:var(--pto)} .pill.Holiday{background:#fde4d6;color:var(--holiday)}
+.pill.Submitted{background:#e0e7ff;color:#3730a3} .pill.Approved{background:#dcfce7;color:#166534}
+.pill.Pending{background:#fef3c7;color:#92400e} .pill.unsynced{background:#fff1e6;color:var(--accent)}
+.onote{margin-top:6px;font-size:13px;background:#fff4e5;border-left:3px solid var(--warn);padding:5px 8px;border-radius:4px;color:#7a3d00;white-space:normal}
+.empty{border:2px dashed var(--line);border-radius:14px;padding:22px 16px;text-align:center;color:var(--ink2)}
+.empty b{display:block;color:var(--ink);font-size:16px;margin-bottom:4px}
+
+.adds{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+.add{background:var(--card);border:1.5px solid var(--ink);border-radius:12px;padding:12px 4px 10px;font-weight:800;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.add i{font-style:normal;font-size:20px;line-height:1}
+.add.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.copybtn{width:100%;margin-top:10px;padding:12px;border-radius:12px;border:1.5px dashed var(--ink2);font-weight:700;color:var(--ink2);background:transparent}
+
+/* bottom bar */
+.bottom{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card);border-top:2px solid var(--ink);padding:10px 14px calc(10px + var(--safe-b));display:flex;align-items:center;gap:12px}
+.bottom .wk{flex:1;line-height:1.2}
+.bottom .wk b{font-family:var(--mono);font-size:22px}
+.bottom .wk small{display:block;font-size:12px;color:var(--ink2)}
+.btn{border-radius:12px;padding:13px 18px;font-weight:800;background:var(--ink);color:#fff;font-size:15px}
+.btn.accent{background:var(--accent)}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn.danger{background:transparent;color:var(--bad);border:1.5px solid #f3c6c2}
+.btn:disabled{opacity:.45}
+.btn.wide{width:100%}
+
+/* sheets */
+.scrim{position:fixed;inset:0;background:rgba(15,18,26,.5);z-index:40;display:flex;align-items:flex-end;justify-content:center;animation:fade .15s}
+.sheet{background:var(--card);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:8px 16px calc(18px + var(--safe-b));animation:up .2s ease-out}
+.sheet.full{height:92vh;display:flex;flex-direction:column}
+.grab{width:42px;height:5px;border-radius:3px;background:var(--line);margin:4px auto 10px}
+.sheet h3{margin:0 0 12px;font-size:19px}
+@keyframes up{from{transform:translateY(40px);opacity:.5}} @keyframes fade{from{opacity:0}}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px}
+.seg button{border:1.5px solid var(--line);border-radius:10px;padding:9px 2px;font-weight:700;font-size:14px;background:#fff}
+.seg button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.field{margin-bottom:14px}
+.field>label{display:block;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);margin-bottom:6px}
+.pick{width:100%;text-align:left;border:1.5px solid var(--line);border-radius:12px;padding:12px;background:#fff;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.pick .jn{font-weight:800;font-family:var(--mono);font-size:15px}
+.pick .jd{font-size:13px;color:var(--ink2)}
+.pick.placeholder .jn{color:var(--ink2);font-family:var(--sans);font-weight:600}
+.mode{display:flex;gap:6px;margin-bottom:10px}
+.mode button{flex:1;padding:8px;border-radius:9px;border:1.5px solid var(--line);font-weight:700;font-size:13px;background:#fff}
+.mode button.on{border-color:var(--accent);color:var(--accent);background:#fff6f0}
+.stepper{display:flex;align-items:center;justify-content:space-between;border:1.5px solid var(--line);border-radius:14px;background:#fff;padding:6px}
+.stepper button{width:58px;height:58px;border-radius:11px;background:var(--bg);font-size:28px;font-weight:700}
+.stepper .val{font-family:var(--mono);font-size:40px;font-weight:800}
+.stepper .val small{font-size:14px;color:var(--ink2);margin-left:4px}
+.chips{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.chips button{flex:1;min-width:46px;padding:9px 0;border-radius:9px;border:1.5px solid var(--line);font-family:var(--mono);font-weight:700;background:#fff}
+.times{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.times input{width:100%;padding:12px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font-family:var(--mono);font-size:20px}
+.calc{margin-top:8px;font-size:14px;color:var(--ink2)}
+textarea,.txt{width:100%;padding:12px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font-size:16px}
+textarea{min-height:64px;resize:vertical}
+.actions{display:flex;gap:8px;margin-top:6px}
+.actions .btn{flex:1}
+.lockmsg{background:#eef2ff;color:#3730a3;border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:12px}
+.search{position:sticky;top:0;background:var(--card);padding-bottom:8px}
+.joblist{flex:1;overflow:auto;margin:0 -16px;padding:0 16px}
+.jobsec{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);margin:14px 0 6px}
+.jobitem{width:100%;text-align:left;padding:11px 12px;border-radius:11px;border:1.5px solid var(--line);background:#fff;margin-bottom:6px}
+.jobitem .jn{font-family:var(--mono);font-weight:800}
+.jobitem .jd{font-size:13px;color:var(--ink2);margin-top:2px}
+.preview{font-family:var(--mono);font-weight:800;font-size:18px;background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:12px;text-align:center}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.sumtbl{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:14px}
+.sumtbl td{padding:7px 4px;border-bottom:1px solid var(--line)}
+.sumtbl td:last-child{text-align:right;font-family:var(--mono);font-weight:700}
+.sumtbl tr.total td{border-top:2px solid var(--ink);border-bottom:0;font-weight:800}
+.warnbox{background:#fff4e5;color:#7a3d00;border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:12px}
+.menu .item{display:block;width:100%;text-align:left;padding:14px 4px;border-bottom:1px solid var(--line);font-weight:600}
+
+/* login / setup */
+.gate{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:24px 22px calc(24px + var(--safe-b));max-width:440px;margin:0 auto}
+.gate .logo{display:flex;align-items:center;gap:12px;margin-bottom:26px}
+.gate .logo .punch{width:52px;height:52px;border-radius:12px;background:var(--ink);color:var(--accent);display:grid;place-items:center;font-family:var(--mono);font-weight:800;font-size:22px}
+.gate h1{margin:0;font-size:26px;line-height:1.05}
+.gate h1 small{display:block;font-size:13px;color:var(--ink2);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-top:4px}
+.gate select,.gate .txt{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font-size:17px;margin-bottom:12px}
+.pinpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0 12px}
+.pinpad button{padding:16px 0;border-radius:12px;background:var(--card);border:1.5px solid var(--line);font-size:22px;font-weight:700;font-family:var(--mono)}
+.pindots{display:flex;justify-content:center;gap:12px;margin:8px 0 6px;height:18px}
+.pindots span{width:14px;height:14px;border-radius:50%;border:2px solid var(--ink)}
+.pindots span.f{background:var(--ink)}
+.err{color:var(--bad);font-weight:600;min-height:22px;text-align:center;font-size:14px}
+.toast{position:fixed;left:50%;bottom:calc(92px + var(--safe-b));transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:60;max-width:90vw;box-shadow:0 6px 20px rgba(0,0,0,.25);animation:fade .2s}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- ============ SETUP (only if no backend URL is baked in) ============ -->
+<section id="vSetup" class="gate hidden">
+  <div class="logo"><div class="punch">⏱</div><h1>Timecard<small>First-time setup</small></h1></div>
+  <p style="color:var(--ink2);margin-top:0">Paste the server link the office gave you. (Type <b>demo</b> to try the app with sample data.)</p>
+  <input id="setupUrl" class="txt" placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" autocorrect="off">
+  <div class="err" id="setupErr"></div>
+  <button class="btn accent wide" id="setupGo">Connect</button>
+</section>
+
+<!-- ============ LOGIN ============ -->
+<section id="vLogin" class="gate hidden">
+  <div class="logo"><div class="punch">⏱</div><h1>Timecard<small id="coName">Academic Technologies Inc</small></h1></div>
+  <select id="loginName"><option value="">Select your name…</option></select>
+  <div class="pindots" id="pinDots"></div>
+  <div class="pinpad" id="pinPad"></div>
+  <div class="err" id="loginErr"></div>
+  <button class="btn accent wide" id="loginGo">Sign in</button>
+  <p style="text-align:center;font-size:13px;color:var(--ink2)">Forgot your PIN? Ask the office to reset it.</p>
+  <div id="demoHint" class="hidden" style="font-size:13px;background:var(--card);border:1.5px dashed var(--line);border-radius:10px;padding:10px 12px;color:var(--ink2)"></div>
+</section>
+
+<!-- ============ MAIN ============ -->
+<section id="vMain" class="hidden">
+  <header class="top">
+    <div class="brand"><span class="punch">⏱</span>Timecard</div>
+    <div class="who"><div id="whoName"></div><div class="sync" id="syncState"><span class="dot"></span><span>Synced</span></div></div>
+    <button class="iconbtn" id="menuBtn" aria-label="Menu">☰</button>
+  </header>
+  <div class="week">
+    <div class="weeknav">
+      <button id="prevWk" aria-label="Previous week">‹</button>
+      <div class="lbl" id="wkLabel"></div>
+      <button id="nextWk" aria-label="Next week">›</button>
+    </div>
+    <div class="days" id="days"></div>
+  </div>
+  <main>
+    <div class="dayhead">
+      <h2 id="dayTitle"></h2>
+      <div class="tot"><b class="num" id="dayTotal">0.00</b><small>paid hrs today</small></div>
+    </div>
+    <div class="entries" id="entries"></div>
+    <div class="adds" id="adds">
+      <button class="add primary" data-add="Job"><i>＋</i>Job</button>
+      <button class="add" data-add="Travel"><i>🚐</i>Travel</button>
+      <button class="add" data-add="Break"><i>☕</i>Break</button>
+      <button class="add" data-add="Shop"><i>🔧</i>Shop</button>
+    </div>
+    <button class="copybtn hidden" id="copyBtn">↻ Copy my last workday</button>
+    <div style="text-align:center;margin-top:12px"><button style="color:var(--ink2);font-size:13px;text-decoration:underline" id="ptoBtn">Add PTO / Holiday</button></div>
+  </main>
+  <footer class="bottom">
+    <div class="wk"><b id="wkTotal">0.00</b> <span style="font-weight:700">hrs</span><small id="wkSub">this week</small></div>
+    <button class="btn" id="submitBtn">Submit week</button>
+  </footer>
+</section>
+
+<div id="sheetHost"></div>
+<div id="toastHost"></div>
+
+<script>
+/* =========================================================
+   CONFIG — paste your Apps Script web-app URL between the quotes
+   so techs never see the setup screen. Leave '' to ask on first run.
+   ========================================================= */
+const BAKED_API_URL = '';
+const APP_VERSION = '1.0.0';
+
+const TYPES = ['Job','Travel','Shop','Break','PTO','Holiday'];
+const TYPE_COLOR = {Job:'var(--job)',Travel:'var(--travel)',Shop:'var(--shop)',Break:'var(--break)',PTO:'var(--pto)',Holiday:'var(--holiday)'};
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LS = {
+  get(k, d){ try{ const v = localStorage.getItem('tt.'+k); return v == null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ localStorage.setItem('tt.'+k, JSON.stringify(v)); },
+  del(k){ localStorage.removeItem('tt.'+k); }
+};
+
+/* ---------- dates (local, string based YYYY-MM-DD) ---------- */
+const pad = n => String(n).padStart(2,'0');
+const iso = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d, 12); };
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate()+n); return iso(d); };
+const todayISO = () => iso(new Date());
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fmtShort = s => { const d = parse(s); return MON[d.getMonth()]+' '+d.getDate(); };
+const fmtLong = s => { const d = parse(s); return DOW[d.getDay()]+', '+MON[d.getMonth()]+' '+d.getDate(); };
+function weekStartOf(s){ const ws = (S.settings && S.settings.WeekStart) || 0; const d = parse(s); const back = (d.getDay() - ws + 7) % 7; return addDays(s, -back); }
+const fmtH = h => (Math.round(h*100)/100).toFixed(2);
+function to12(t){ if(!t) return ''; let [h,m] = t.split(':').map(Number); const ap = h>=12?'p':'a'; h = h%12||12; return h+':'+pad(m)+ap; }
+function diffHours(a, b){ if(!a||!b) return 0; const [h1,m1]=a.split(':').map(Number), [h2,m2]=b.split(':').map(Number); let d=(h2*60+m2)-(h1*60+m1); if(d<0) d+=1440; return Math.round(d/60*100)/100; }
+const newId = () => 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+
+/* ---------- state ---------- */
+const S = {
+  api: LS.get('api', '') || BAKED_API_URL,
+  auth: LS.get('auth', null),
+  jobs: LS.get('jobs', []),
+  settings: LS.get('settings', {WeekStart:0, OTThreshold:40, TravelPaid:true, JobSeparator:'-'}),
+  entries: LS.get('entries', {}),
+  queue: LS.get('queue', []),
+  recent: LS.get('recent', []),
+  sel: todayISO(),
+  syncing: false, online: navigator.onLine, lastErr: ''
+};
+if (BAKED_API_URL && !LS.get('api','')) S.api = BAKED_API_URL;
+const urlApi = new URLSearchParams(location.search).get('api');
+if (urlApi) { S.api = urlApi; LS.set('api', urlApi); history.replaceState(null, '', location.pathname); }
+
+function persist(){ LS.set('entries', S.entries); LS.set('queue', S.queue); LS.set('recent', S.recent); }
+
+/* ---------- backend ---------- */
+let demoLoaded = null;
+function loadDemo(){
+  if (!demoLoaded) demoLoaded = new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'demo-backend.js'; s.onload = res; s.onerror = () => rej(new Error('demo-backend.js missing')); document.head.appendChild(s); });
+  return demoLoaded;
+}
+async function call(action, payload){
+  payload = Object.assign({}, payload || {});
+  if (S.auth && S.auth.token && !payload.pin) payload.token = S.auth.token;
+  let out;
+  if (S.api === 'demo') { await loadDemo(); out = await window.DemoBackend.call(action, payload); }
+  else {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 30000);
+    try {
+      const r = await fetch(S.api, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(Object.assign({action}, payload)), signal: ctl.signal, redirect:'follow' });
+      out = await r.json();
+    } catch (e) { const err = new Error('Can\'t reach the server'); err.network = true; throw err; }
+    finally { clearTimeout(t); }
+  }
+  if (out && out.error) {
+    const err = new Error(out.error.replace(/^(AUTH|LOCKED): /,''));
+    if (/^AUTH:/.test(out.error)) err.auth = true;
+    throw err;
+  }
+  return out;
+}
+
+/* ---------- views ---------- */
+function show(id){ ['vSetup','vLogin','vMain'].forEach(v => $('#'+v).classList.toggle('hidden', v !== id)); }
+function toast(msg, ms){ const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; $('#toastHost').appendChild(t); setTimeout(() => t.remove(), ms || 2600); }
+
+async function boot(){
+  if (!S.api) { show('vSetup'); return; }
+  if (!S.auth || !S.auth.token) { S.auth = null; LS.del('auth'); await showLogin(); return; }
+  show('vMain');
+  render();
+  refresh();
+}
+
+/* setup */
+$('#setupGo').onclick = async () => {
+  const v = $('#setupUrl').value.trim();
+  $('#setupErr').textContent = '';
+  if (!v) return;
+  const prev = S.api; S.api = v;
+  try { await call('ping'); LS.set('api', v); await showLogin(); }
+  catch (e) { S.api = prev; $('#setupErr').textContent = 'Couldn\'t connect — check the link.'; }
+};
+
+/* login */
+let pin = '';
+async function showLogin(msg){
+  show('vLogin');
+  $('#loginErr').textContent = msg || '';
+  pin = ''; drawPin();
+  const sel = $('#loginName');
+  sel.innerHTML = '<option value="">Loading names…</option>';
+  try {
+    const r = await call('names');
+    const last = LS.get('lastEmp', '');
+    if (S.api === 'demo') {
+      $('#demoHint').classList.remove('hidden');
+      $('#demoHint').innerHTML = '<b>Demo mode PINs:</b> Marcus Hill 1111 · Tyler Brooks 2222 · Dana Pruitt 3333 · Jake Lowery 4444 · Chris Nguyen 5555. (Employees you add in the office dashboard get their PIN when you add them.)';
+    } else $('#demoHint').classList.add('hidden');
+    sel.innerHTML = '<option value="">Select your name…</option>' + r.names.sort((a,b)=>a.name.localeCompare(b.name)).map(n => `<option value="${esc(n.id)}" ${n.id===last?'selected':''}>${esc(n.name)}</option>`).join('');
+  } catch (e) {
+    sel.innerHTML = '<option value="">(offline — can\'t load names)</option>';
+    $('#loginErr').textContent = e.message;
+  }
+  if (msg) $('#loginErr').textContent = msg;
+}
+function drawPin(){
+  $('#pinDots').innerHTML = Array.from({length: Math.max(4, pin.length)}, (_, i) => `<span class="${i < pin.length ? 'f':''}"></span>`).join('');
+}
+$('#pinPad').innerHTML = ['1','2','3','4','5','6','7','8','9','⌫','0','✓'].map(k => `<button data-k="${k}">${k}</button>`).join('');
+$('#pinPad').onclick = e => {
+  const k = e.target.closest('button'); if (!k) return;
+  const v = k.dataset.k;
+  if (v === '⌫') pin = pin.slice(0, -1);
+  else if (v === '✓') return doLogin();
+  else if (pin.length < 6) pin += v;
+  drawPin();
+};
+$('#loginGo').onclick = () => doLogin();
+// physical keyboard support for the PIN (handy on a PC)
+document.addEventListener('keydown', e => {
+  if ($('#vLogin').classList.contains('hidden') || e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+  if (/^\d$/.test(e.key) && pin.length < 6) { pin += e.key; drawPin(); }
+  else if (e.key === 'Backspace') { pin = pin.slice(0, -1); drawPin(); }
+  else if (e.key === 'Enter') doLogin();
+});
+$('#loginName').addEventListener('change', () => $('#loginName').blur());
+async function doLogin(){
+  const empId = $('#loginName').value;
+  $('#loginErr').textContent = '';
+  if (!empId) { $('#loginErr').textContent = 'Pick your name'; return; }
+  if (pin.length < 4) { $('#loginErr').textContent = 'Enter your PIN'; return; }
+  $('#loginGo').innerHTML = '<span class="spin"></span>';
+  try {
+    const r = await call('login', { empId, pin });
+    const sameTech = LS.get('lastEmp', '') === empId;
+    S.auth = { empId, name: r.emp.name, token: r.token };
+    LS.set('auth', S.auth); LS.set('lastEmp', empId);
+    S.jobs = r.jobs; LS.set('jobs', r.jobs);
+    S.settings = r.settings; LS.set('settings', r.settings);
+    if (!sameTech) { S.entries = {}; S.queue = []; S.recent = []; }   // keep unsynced work when the same tech signs back in
+    persist(); pin = '';
+    S.sel = todayISO();
+    show('vMain'); render(); refresh();
+  } catch (e) { $('#loginErr').textContent = e.message; pin = ''; drawPin(); }
+  finally { $('#loginGo').textContent = 'Sign in'; }
+}
+function logout(){
+  if (S.queue.length && !confirm(S.queue.length + ' change(s) haven\'t synced yet and will be lost. Sign out anyway?')) return;
+  S.auth = null; LS.del('auth'); S.entries = {}; S.queue = []; persist();
+  closeSheet(); showLogin();
+}
+
+/* ---------- data sync ---------- */
+function weekRange(s){ const a = weekStartOf(s); return [a, addDays(a, 6)]; }
+async function refresh(){
+  if (!S.auth) return;
+  const [from, to] = weekRange(S.sel);
+  try {
+    await flush();
+    if (!S.auth) return;
+    const [j, r] = await Promise.all([ call('jobs'), call('entries', { from, to }) ]);
+    S.jobs = j.jobs; LS.set('jobs', j.jobs);
+    S.settings = j.settings; LS.set('settings', j.settings);
+    const pendingIds = new Set(S.queue.map(q => q.op === 'delete' ? q.id : q.entry.EntryID));
+    Object.keys(S.entries).forEach(id => { const e = S.entries[id]; if (e.Date >= from && e.Date <= to && !pendingIds.has(id)) delete S.entries[id]; });
+    r.entries.forEach(e => { if (!pendingIds.has(e.EntryID)) S.entries[e.EntryID] = e; });
+    pruneOld(); persist(); S.online = true; S.lastErr = '';
+  } catch (e) { handleErr(e); }
+  render();
+}
+function pruneOld(){
+  const cutoff = addDays(todayISO(), -70);
+  const pendingIds = new Set(S.queue.map(q => q.op === 'delete' ? q.id : q.entry.EntryID));
+  Object.keys(S.entries).forEach(id => { if (S.entries[id].Date < cutoff && !pendingIds.has(id)) delete S.entries[id]; });
+}
+function handleErr(e){
+  if (e.auth) { S.auth = null; LS.del('auth'); S.syncing = false; showLogin(e.message + (S.queue.length ? ' Your ' + S.queue.length + ' unsynced change(s) are saved and will upload after you sign in.' : '')); return; }
+  if (e.network) { S.online = false; S.lastErr = ''; } else { S.lastErr = e.message; toast(e.message, 4000); }
+  renderSync();
+}
+function queueOp(op){
+  // collapse multiple edits to the same entry
+  const id = op.op === 'delete' ? op.id : op.entry.EntryID;
+  S.queue = S.queue.filter(q => (q.op === 'delete' ? q.id : q.entry.EntryID) !== id);
+  S.queue.push(op);
+  persist(); renderSync(); flush();
+}
+async function flush(){
+  if (S.syncing || !S.queue.length || !S.auth) return;
+  S.syncing = true; renderSync();
+  const batch = S.queue.slice(0, 40);
+  try {
+    const r = await call('sync', { ops: batch });
+    S.online = true;
+    const done = new Set(batch.map(q => q.op === 'delete' ? q.id : q.entry.EntryID));
+    S.queue = S.queue.filter(q => !done.has(q.op === 'delete' ? q.id : q.entry.EntryID) || !batch.includes(q));
+    r.results.forEach(res => {
+      const stillPending = S.queue.some(q => (q.op === 'delete' ? q.id : q.entry.EntryID) === res.id);
+      if (stillPending) return;
+      if (res.ok) { if (res.deleted) delete S.entries[res.id]; else if (res.entry) S.entries[res.id] = res.entry; }
+      else {
+        toast('Not saved: ' + res.error.replace(/^(LOCKED): /,''), 4500);
+        if (res.entry) S.entries[res.id] = res.entry; else delete S.entries[res.id];
+      }
+    });
+    persist();
+  } catch (e) { handleErr(e); }
+  S.syncing = false;
+  render();
+  if (S.queue.length && S.online) setTimeout(flush, 300);
+}
+window.addEventListener('online', () => { S.online = true; flush().then(refresh); });
+window.addEventListener('offline', () => { S.online = false; renderSync(); });
+setInterval(() => { if (S.queue.length) flush(); }, 45000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.auth) refresh(); });
+
+/* ---------- calculations ---------- */
+function isPaid(e){ return e.Type === 'Job' || e.Type === 'Shop' || (e.Type === 'Travel' && S.settings.TravelPaid !== false); }
+function dayEntries(d){ return Object.values(S.entries).filter(e => e.Date === d).sort((a,b) => (a.Start||'99').localeCompare(b.Start||'99') || (a._order||0) - (b._order||0) || a.EntryID.localeCompare(b.EntryID)); }
+function sumPaid(list){ return list.filter(isPaid).reduce((s,e) => s + (+e.Hours||0), 0); }
+function sumType(list, t){ return list.filter(e => e.Type === t).reduce((s,e) => s + (+e.Hours||0), 0); }
+function jobInfo(no){ return S.jobs.find(j => j.JobNo === no); }
+function pendingSet(){ return new Set(S.queue.map(q => q.op === 'delete' ? q.id : q.entry.EntryID)); }
+
+/* ---------- render ---------- */
+function renderSync(){
+  const el = $('#syncState'); if (!el) return;
+  let cls = '', txt = 'Synced';
+  if (S.syncing) { cls = 'pend'; txt = 'Syncing…'; }
+  else if (S.queue.length && !S.online) { cls = 'off'; txt = S.queue.length + ' waiting · offline'; }
+  else if (S.queue.length) { cls = 'pend'; txt = S.queue.length + ' to sync'; }
+  else if (!S.online) { cls = 'off'; txt = 'Offline'; }
+  el.innerHTML = `<span class="dot ${cls}"></span><span>${txt}</span>`;
+}
+function render(){
+  if (!S.auth) return;
+  $('#whoName').textContent = S.auth.name;
+  renderSync();
+  const [from, to] = weekRange(S.sel);
+  $('#wkLabel').innerHTML = `${fmtShort(from)} – ${fmtShort(to)}<small>${from <= todayISO() && todayISO() <= to ? 'This week' : 'Week of ' + fmtShort(from)}</small>`;
+  const pend = pendingSet();
+  const wk = []; let html = '';
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(from, i); const list = dayEntries(d); wk.push(...list);
+    const h = sumPaid(list) + sumType(list,'PTO') + sumType(list,'Holiday');
+    const returned = list.some(e => e.OfficeNote && e.Status === 'Open');
+    html += `<button class="day ${d===S.sel?'sel':''} ${d===todayISO()?'today':''} ${list.length?'has':''}" data-d="${d}">
+      ${returned ? '<span class="flag"></span>' : ''}
+      <div class="dn">${DOW[parse(d).getDay()]}</div><div class="dd">${parse(d).getDate()}</div><div class="dh">${list.length ? fmtH(h).replace(/\.00$/,'') : '–'}</div></button>`;
+  }
+  $('#days').innerHTML = html;
+
+  // day panel
+  $('#dayTitle').textContent = (S.sel === todayISO() ? 'Today · ' : '') + fmtLong(S.sel);
+  const list = dayEntries(S.sel);
+  $('#dayTotal').textContent = fmtH(sumPaid(list));
+  if (!list.length) {
+    $('#entries').innerHTML = `<div class="empty"><b>No time yet</b>Add each job you worked, your travel, and your breaks.</div>`;
+  } else {
+    $('#entries').innerHTML = list.map(e => {
+      const j = jobInfo(e.JobNo);
+      const title = e.Type === 'Job' ? e.JobNo : e.Type === 'Travel' ? (e.JobNo ? 'Travel → ' + e.JobNo : 'Travel') : e.Type === 'Shop' ? 'Shop / Office' : e.Type;
+      const sub = [ e.Start && e.End ? to12(e.Start)+'–'+to12(e.End) : '', j && (e.Type==='Job') ? j.Description || j.Customer : '', e.Notes ].filter(Boolean).join(' · ');
+      const pills = `<span class="pill ${e.Type}">${e.Type}</span>` + (e.Status !== 'Open' ? `<span class="pill ${e.Status}">${e.Status === 'Approved' ? '✓ ' : '🔒 '}${e.Status}</span>` : '') + (pend.has(e.EntryID) ? '<span class="pill unsynced">Not synced</span>' : '') + (j && j.Status === 'Pending' ? '<span class="pill Pending">New job</span>' : '');
+      return `<button class="entry ${isPaid(e) || e.Type==='PTO' || e.Type==='Holiday' ? '' : 'unpaid'}" data-id="${esc(e.EntryID)}">
+        <div class="bar" style="background:${TYPE_COLOR[e.Type]}"></div>
+        <div class="body"><div class="t1">${esc(title)}</div><div class="t2">${pills}${esc(sub)}</div>
+          ${e.OfficeNote && e.Status === 'Open' ? `<div class="onote">Office: ${esc(e.OfficeNote)}</div>` : ''}</div>
+        <div class="hrs">${fmtH(+e.Hours)}<small>${e.Type === 'Break' ? 'unpaid' : 'hrs'}</small></div></button>`;
+    }).join('');
+  }
+  $('#copyBtn').classList.toggle('hidden', list.length > 0);
+
+  // week footer
+  const paid = sumPaid(wk), pto = sumType(wk,'PTO') + sumType(wk,'Holiday');
+  const ot = Math.max(0, paid - (S.settings.OTThreshold || 40));
+  $('#wkTotal').textContent = fmtH(paid + pto);
+  const open = wk.filter(e => e.Status === 'Open').length, subm = wk.filter(e => e.Status === 'Submitted').length, appr = wk.filter(e => e.Status === 'Approved').length;
+  let status = open ? (subm || appr ? 'Partly submitted' : 'Not submitted') : appr && !subm ? 'Approved ✓' : subm ? 'Submitted' : 'No time';
+  $('#wkSub').textContent = `this week${ot ? ' · ' + fmtH(ot) + ' OT' : ''}${pto ? ' · ' + fmtH(pto) + ' PTO/Hol' : ''} · ${status}`;
+  $('#submitBtn').disabled = !open;
+  $('#submitBtn').textContent = open ? 'Submit week' : (wk.length ? 'Submitted' : 'Submit week');
+}
+
+/* ---------- navigation ---------- */
+$('#days').onclick = e => { const b = e.target.closest('.day'); if (!b) return; S.sel = b.dataset.d; render(); };
+$('#prevWk').onclick = () => { S.sel = addDays(weekStartOf(S.sel), -7); render(); refresh(); };
+$('#nextWk').onclick = () => { S.sel = addDays(weekStartOf(S.sel), 7); render(); refresh(); };
+$('#entries').onclick = e => { const b = e.target.closest('.entry'); if (b) openEditor(S.entries[b.dataset.id]); };
+$('#adds').onclick = e => { const b = e.target.closest('[data-add]'); if (b) openEditor(null, b.dataset.add); };
+$('#ptoBtn').onclick = () => openEditor(null, 'PTO');
+$('#copyBtn').onclick = copyLastDay;
+$('#submitBtn').onclick = openSubmit;
+$('#menuBtn').onclick = openMenu;
+
+/* ---------- sheets ---------- */
+function openSheet(html, cls){
+  $('#sheetHost').innerHTML = `<div class="scrim"><div class="sheet ${cls||''}"><div class="grab"></div>${html}</div></div>`;
+  const scrim = $('#sheetHost .scrim');
+  scrim.addEventListener('click', e => { if (e.target === scrim) closeSheet(); });
+  return scrim.firstElementChild;
+}
+function closeSheet(){ $('#sheetHost').innerHTML = ''; }
+
+/* entry editor */
+let ed = null;
+function openEditor(entry, type, draft){
+  const locked = entry && entry.Status !== 'Open';
+  ed = draft || (entry ? Object.assign({}, entry) : { EntryID: newId(), Date: S.sel, Type: type || 'Job', JobNo: '', Start: '', End: '', Hours: type === 'Break' ? 0.5 : (type === 'PTO' || type === 'Holiday') ? 8 : 1, Notes: '', Status: 'Open', _new: true });
+  if (!draft && !entry && (type === 'Job' || type === 'Travel') && S.recent[0]) ed.JobNo = S.recent[0];
+  if (!draft) ed._mode = ed.Start && ed.End ? 'times' : 'hours';
+  const el = openSheet(`<h3>${entry ? (locked ? 'View' : 'Edit') + ' time' : 'Add time'} · <span style="color:var(--ink2);font-weight:600">${fmtLong(ed.Date)}</span></h3>
+    ${locked ? `<div class="lockmsg">🔒 This entry is <b>${ed.Status}</b>. To change it, ask the office.</div>` : ''}
+    ${ed.OfficeNote ? `<div class="warnbox"><b>Office note:</b> ${esc(ed.OfficeNote)}</div>` : ''}
+    <div class="seg" id="edType">${TYPES.map(t => `<button data-t="${t}">${t}</button>`).join('')}</div>
+    <div class="field" id="edJobF"><label id="edJobL">Job number</label><button class="pick" id="edJob"></button></div>
+    <div class="field"><label>Time</label>
+      <div class="mode"><button data-m="hours">Hours</button><button data-m="times">Start – End</button></div>
+      <div id="edHours"><div class="stepper"><button data-s="-0.25">−</button><div class="val"><span id="edH"></span><small>hrs</small></div><button data-s="0.25">＋</button></div>
+        <div class="chips">${[0.5,1,2,4,8].map(v => `<button data-v="${v}">${v}</button>`).join('')}</div></div>
+      <div id="edTimes"><div class="times"><input type="time" id="edStart" step="300"><input type="time" id="edEnd" step="300"></div><div class="calc" id="edCalc"></div></div>
+    </div>
+    <div class="field"><label>Notes (optional)</label><textarea id="edNotes" placeholder="What you worked on, room #, etc."></textarea></div>
+    <div class="err" id="edErr"></div>
+    <div class="actions">
+      ${entry && !locked ? '<button class="btn danger" id="edDel">Delete</button>' : ''}
+      <button class="btn ghost" id="edCancel">${locked ? 'Close' : 'Cancel'}</button>
+      ${locked ? '' : '<button class="btn accent" id="edSave">Save</button>'}
+    </div>`);
+  $('#edNotes').value = ed.Notes || '';
+  $('#edStart').value = ed.Start || ''; $('#edEnd').value = ed.End || '';
+  if (locked) el.querySelectorAll('button:not(#edCancel),input,textarea').forEach(x => x.disabled = true);
+  function paint(){
+    el.querySelectorAll('#edType button').forEach(b => b.classList.toggle('on', b.dataset.t === ed.Type));
+    const needJob = ed.Type === 'Job' || ed.Type === 'Travel';
+    $('#edJobF').classList.toggle('hidden', !needJob);
+    $('#edJobL').textContent = ed.Type === 'Travel' ? 'Traveling to job (optional)' : 'Job number';
+    const j = jobInfo(ed.JobNo);
+    $('#edJob').className = 'pick' + (ed.JobNo ? '' : ' placeholder');
+    $('#edJob').innerHTML = ed.JobNo ? `<div><div class="jn">${esc(ed.JobNo)}</div><div class="jd">${esc(j ? (j.Description || j.Customer) : 'Not on job list')}</div></div><span>›</span>` : `<div class="jn">Choose job…</div><span>›</span>`;
+    el.querySelectorAll('.mode button').forEach(b => b.classList.toggle('on', b.dataset.m === ed._mode));
+    $('#edHours').classList.toggle('hidden', ed._mode !== 'hours');
+    $('#edTimes').classList.toggle('hidden', ed._mode !== 'times');
+    $('#edH').textContent = fmtH(+ed.Hours || 0);
+    const dh = diffHours($('#edStart').value, $('#edEnd').value);
+    $('#edCalc').textContent = dh ? '= ' + fmtH(dh) + ' hrs' : 'Enter start and end';
+  }
+  paint();
+  el.querySelector('#edType').onclick = e => { const b = e.target.closest('button'); if (!b) return; ed.Type = b.dataset.t; if (ed.Type !== 'Job' && ed.Type !== 'Travel') ed.JobNo = ''; else if (!ed.JobNo && S.recent[0]) ed.JobNo = S.recent[0]; paint(); };
+  el.querySelector('.mode').onclick = e => { const b = e.target.closest('button'); if (b) { ed._mode = b.dataset.m; paint(); } };
+  el.querySelector('.stepper').onclick = e => { const b = e.target.closest('[data-s]'); if (b) { ed.Hours = Math.max(0.25, Math.min(24, (+ed.Hours||0) + +b.dataset.s)); paint(); } };
+  el.querySelector('.chips').onclick = e => { const b = e.target.closest('[data-v]'); if (b) { ed.Hours = +b.dataset.v; paint(); } };
+  $('#edStart').oninput = $('#edEnd').oninput = paint;
+  $('#edJob').onclick = () => {
+    ed.Notes = $('#edNotes').value; ed.Start = $('#edStart').value; ed.End = $('#edEnd').value;
+    const d = ed, back = () => openEditor(d._new ? null : S.entries[d.EntryID], d.Type, d);
+    openJobPicker(no => { d.JobNo = no; back(); }, back);
+  };
+  $('#edCancel').onclick = closeSheet;
+  if ($('#edDel')) $('#edDel').onclick = () => {
+    if (!confirm('Delete this entry?')) return;
+    delete S.entries[ed.EntryID]; queueOp({ op:'delete', id: ed.EntryID }); closeSheet(); render();
+  };
+  if ($('#edSave')) $('#edSave').onclick = () => {
+    const e = { EntryID: ed.EntryID, Date: ed.Date, Type: ed.Type, JobNo: ed.JobNo || '', Notes: $('#edNotes').value.trim(), Status: 'Open', OfficeNote: ed.OfficeNote || '' };
+    if (ed._mode === 'times') {
+      e.Start = $('#edStart').value; e.End = $('#edEnd').value;
+      if (!e.Start || !e.End) return $('#edErr').textContent = 'Enter a start and end time';
+      e.Hours = diffHours(e.Start, e.End);
+    } else { e.Start = ''; e.End = ''; e.Hours = +ed.Hours; }
+    if (!(e.Hours > 0)) return $('#edErr').textContent = 'Hours must be more than 0';
+    if (e.Type === 'Job' && !e.JobNo) return $('#edErr').textContent = 'Choose a job number';
+    const day = dayEntries(e.Date).filter(x => x.EntryID !== e.EntryID);
+    if (sumPaid(day) + (isPaid(e) ? e.Hours : 0) > 18 && !confirm('That makes over 18 paid hours on this day. Save anyway?')) return;
+    if (e.JobNo) { S.recent = [e.JobNo, ...S.recent.filter(x => x !== e.JobNo)].slice(0, 8); }
+    S.entries[e.EntryID] = Object.assign({}, S.entries[e.EntryID] || {}, e, { EmpID: S.auth.empId, Employee: S.auth.name });
+    queueOp({ op:'upsert', entry: e });
+    closeSheet(); render();
+  };
+}
+/* job picker */
+function openJobPicker(onPick, onBack){
+  const el = openSheet(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><button class="btn ghost" id="jpBack" style="padding:8px 12px">‹ Back</button><h3 style="margin:0">Choose job</h3></div>
+    <div class="search"><input class="txt" id="jpQ" placeholder="Search job #, customer, description" autocomplete="off" autocapitalize="characters"></div>
+    <div class="joblist" id="jpList"></div>
+    <button class="btn wide" id="jpNew" style="margin-top:10px">＋ Request a new job number</button>`, 'full');
+  function draw(){
+    const q = $('#jpQ').value.trim().toLowerCase();
+    const match = j => !q || (j.JobNo + ' ' + (j.Customer||'') + ' ' + (j.Description||'')).toLowerCase().includes(q);
+    const item = j => `<button class="jobitem" data-no="${esc(j.JobNo)}"><div class="jn">${esc(j.JobNo)} ${j.Status === 'Pending' ? '<span class="pill Pending">Pending</span>' : ''}</div><div class="jd">${esc(j.Description || j.Customer || '')}</div></button>`;
+    const recent = S.recent.map(jobInfo).filter(Boolean).filter(match);
+    const rest = S.jobs.filter(match).filter(j => !S.recent.includes(j.JobNo)).sort((a,b) => a.JobNo.localeCompare(b.JobNo));
+    $('#jpList').innerHTML = (recent.length ? `<div class="jobsec">Recent</div>${recent.map(item).join('')}` : '') +
+      `<div class="jobsec">${q ? 'Matches' : 'All active jobs'}</div>` + (rest.length ? rest.map(item).join('') : `<div class="empty">No match for “${esc(q)}”.<br>Request it as a new job below.</div>`);
+  }
+  draw();
+  $('#jpQ').oninput = draw;
+  $('#jpList').onclick = e => { const b = e.target.closest('.jobitem'); if (b) onPick(b.dataset.no); };
+  $('#jpBack').onclick = onBack;
+  $('#jpNew').onclick = () => openRequest(onPick, () => openJobPicker(onPick, onBack));
+}
+
+/* request new job */
+function openRequest(onPick, onBack){
+  const sep = S.settings.JobSeparator == null ? '-' : S.settings.JobSeparator;
+  openSheet(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><button class="btn ghost" id="rqBack" style="padding:8px 12px">‹ Back</button><h3 style="margin:0">New job number</h3></div>
+    <p style="margin:0 0 12px;color:var(--ink2);font-size:14px">The office will confirm it. You can post time to it right away.</p>
+    <div class="grid3">
+      <div class="field"><label>Customer</label><input class="txt" id="rqC" placeholder="GHS" autocapitalize="characters"></div>
+      <div class="field"><label>PO #</label><input class="txt" id="rqP" inputmode="text"></div>
+      <div class="field"><label>Quote #</label><input class="txt" id="rqQ"></div>
+    </div>
+    <div class="preview" id="rqPrev">—</div>
+    <div class="field"><label>Job name / description</label><input class="txt" id="rqD" placeholder="e.g. Gym scoreboard install"></div>
+    <div class="err" id="rqErr"></div>
+    <button class="btn accent wide" id="rqGo">Request &amp; use this job</button>`);
+  const prev = () => { const v = [$('#rqC').value.trim().toUpperCase(), $('#rqP').value.trim(), $('#rqQ').value.trim()].filter(Boolean).join(sep); $('#rqPrev').textContent = v || '—'; };
+  ['#rqC','#rqP','#rqQ'].forEach(s => $(s).oninput = prev);
+  $('#rqBack').onclick = onBack;
+  $('#rqGo').onclick = async () => {
+    $('#rqErr').textContent = '';
+    if (!$('#rqC').value.trim() || (!$('#rqP').value.trim() && !$('#rqQ').value.trim())) { $('#rqErr').textContent = 'Enter the customer and a PO or quote number'; return; }
+    $('#rqGo').innerHTML = '<span class="spin"></span>';
+    try {
+      const r = await call('requestJob', { customer: $('#rqC').value, po: $('#rqP').value, quote: $('#rqQ').value, description: $('#rqD').value });
+      S.jobs = r.jobs; LS.set('jobs', r.jobs);
+      toast(r.job.Status === 'Pending' ? 'Job requested — office will confirm' : 'That job already exists — selected it');
+      onPick(r.job.JobNo);
+    } catch (e) {
+      $('#rqErr').textContent = e.network ? 'You need a connection to request a new job. Use SHOP for now and add a note, or try again when you have signal.' : e.message;
+      $('#rqGo').textContent = 'Request & use this job';
+    }
+  };
+}
+
+/* copy last workday */
+async function copyLastDay(){
+  let src = null;
+  for (let i = 1; i <= 21 && !src; i++) { const d = addDays(S.sel, -i); if (dayEntries(d).length) src = d; }
+  if (!src) {
+    try { const a = addDays(weekStartOf(S.sel), -7); const r = await call('entries', { from: a, to: addDays(S.sel, -1) }); r.entries.forEach(e => S.entries[e.EntryID] = S.entries[e.EntryID] || e); persist(); }
+    catch (e) {}
+    for (let i = 1; i <= 21 && !src; i++) { const d = addDays(S.sel, -i); if (dayEntries(d).length) src = d; }
+  }
+  if (!src) { toast('No earlier day found to copy'); return; }
+  const items = dayEntries(src).filter(e => e.Type !== 'PTO' && e.Type !== 'Holiday');
+  if (!confirm(`Copy ${items.length} line(s) from ${fmtLong(src)} to ${fmtLong(S.sel)}? You can adjust hours after.`)) return;
+  items.forEach((x, i) => {
+    const e = { EntryID: newId() + i, Date: S.sel, Type: x.Type, JobNo: x.JobNo, Start: x.Start, End: x.End, Hours: x.Hours, Notes: x.Notes, Status: 'Open', OfficeNote: '' };
+    S.entries[e.EntryID] = Object.assign({ EmpID: S.auth.empId, Employee: S.auth.name }, e);
+    queueOp({ op:'upsert', entry: e });
+  });
+  render();
+}
+
+/* submit week */
+function openSubmit(){
+  const [from, to] = weekRange(S.sel);
+  const rows = []; let paid = 0, br = 0, pto = 0; const empty = [];
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(from, i); const l = dayEntries(d);
+    const p = sumPaid(l), b = sumType(l,'Break'), o = sumType(l,'PTO') + sumType(l,'Holiday');
+    paid += p; br += b; pto += o;
+    const dow = parse(d).getDay();
+    if (!l.length && dow !== 0 && dow !== 6 && d <= todayISO()) empty.push(DOW[dow]);
+    rows.push(`<tr><td>${fmtLong(d)}</td><td>${l.length ? fmtH(p + o) : '—'}</td></tr>`);
+  }
+  const ot = Math.max(0, paid - (S.settings.OTThreshold || 40));
+  const jobs = {};
+  for (let i = 0; i < 7; i++) dayEntries(addDays(from, i)).filter(e => e.Type === 'Job').forEach(e => jobs[e.JobNo] = (jobs[e.JobNo]||0) + +e.Hours);
+  openSheet(`<h3>Submit week of ${fmtShort(from)}</h3>
+    ${S.queue.length ? `<div class="warnbox">${S.queue.length} change(s) still need to sync. Get a signal before submitting.</div>` : ''}
+    ${empty.length ? `<div class="warnbox">No time entered for: <b>${empty.join(', ')}</b>. Add PTO or time if needed.</div>` : ''}
+    <table class="sumtbl">${rows.join('')}
+      <tr class="total"><td>Paid hours${ot ? ` <span style="color:var(--warn)">(${fmtH(ot)} OT)</span>` : ''}</td><td>${fmtH(paid)}</td></tr>
+      ${pto ? `<tr><td>PTO / Holiday</td><td>${fmtH(pto)}</td></tr>` : ''}
+      <tr><td style="color:var(--ink2)">Breaks (unpaid)</td><td style="color:var(--ink2)">${fmtH(br)}</td></tr></table>
+    <div class="jobsec">Hours by job</div>
+    <table class="sumtbl">${Object.keys(jobs).sort().map(k => `<tr><td class="num">${esc(k)}</td><td>${fmtH(jobs[k])}</td></tr>`).join('') || '<tr><td>No job time</td><td></td></tr>'}</table>
+    <p style="font-size:13px;color:var(--ink2)">By submitting, you confirm these hours are accurate. Once submitted, only the office can make changes.</p>
+    <div class="err" id="sbErr"></div>
+    <div class="actions"><button class="btn ghost" id="sbCancel">Cancel</button><button class="btn accent" id="sbGo" ${S.queue.length ? 'disabled' : ''}>Submit</button></div>`);
+  $('#sbCancel').onclick = closeSheet;
+  $('#sbGo').onclick = async () => {
+    $('#sbGo').innerHTML = '<span class="spin"></span>';
+    try {
+      await flush();
+      if (S.queue.length) throw new Error('Some changes haven\'t synced yet');
+      const r = await call('submit', { from, to });
+      r.entries.forEach(e => S.entries[e.EntryID] = e); persist();
+      closeSheet(); render(); toast(`Submitted ${r.submitted} entries ✓`);
+    } catch (e) { $('#sbErr').textContent = e.network ? 'No connection — try again when you have signal.' : e.message; $('#sbGo').textContent = 'Submit'; }
+  };
+}
+
+/* menu */
+function openMenu(){
+  openSheet(`<h3>${esc(S.auth.name)}</h3><div class="menu">
+    <button class="item" id="mRefresh">↻ Refresh jobs &amp; time</button>
+    <button class="item" id="mToday">📅 Jump to today</button>
+    <button class="item" id="mOut" style="color:var(--bad)">Sign out</button></div>
+    <p style="font-size:12px;color:var(--ink2);margin-top:14px">Timecard v${APP_VERSION}${S.api === 'demo' ? ' · DEMO MODE <button id="mReset" style="text-decoration:underline;font-size:12px">reset demo data</button> · <button id="mUnlink" style="text-decoration:underline;font-size:12px">leave demo</button>' : ''}</p>`);
+  $('#mRefresh').onclick = () => { closeSheet(); refresh().then(() => toast('Up to date')); };
+  $('#mToday').onclick = () => { closeSheet(); S.sel = todayISO(); render(); refresh(); };
+  $('#mOut').onclick = logout;
+  if ($('#mReset')) $('#mReset').onclick = async () => { await loadDemo(); window.DemoBackend.reset(); S.entries = {}; S.queue = []; persist(); closeSheet(); refresh(); };
+  if ($('#mUnlink')) $('#mUnlink').onclick = () => { LS.del('api'); LS.del('auth'); location.reload(); };
+}
+
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+boot();
+</script>
+</body>
+</html>

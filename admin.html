@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATI Timecard — Office</title>
+<link rel="icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<style>
+:root{
+  --bg:#f5f3ee; --panel:#ffffff; --ink:#1b1f2a; --ink2:#5d6475; --ink3:#8a90a0; --line:#e3ded3; --line2:#efebe3;
+  --accent:#e8590c; --accentbg:#fff3eb; --ok:#1f7a45; --okbg:#e3f5ea; --warn:#a85a00; --warnbg:#fff4e0; --bad:#b42318; --badbg:#fde8e7;
+  --sub:#3730a3; --subbg:#e8eaff;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+  --sans: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px}
+button{font:inherit;color:inherit;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+.hidden{display:none!important}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+header.bar{background:var(--ink);color:#fff;display:flex;align-items:center;gap:18px;padding:0 20px;height:56px;position:sticky;top:0;z-index:30}
+.logo{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-size:14px}
+.logo .pc{width:28px;height:28px;border-radius:7px;background:var(--accent);display:grid;place-items:center}
+.logo small{font-weight:600;letter-spacing:.04em;opacity:.6;text-transform:none;font-size:13px}
+nav.tabs{display:flex;gap:2px;height:100%}
+nav.tabs button{background:none;border:0;color:#c9cdd6;padding:0 14px;height:100%;font-weight:600;border-bottom:3px solid transparent;position:relative}
+nav.tabs button.on{color:#fff;border-bottom-color:var(--accent)}
+nav.tabs .badge{background:var(--accent);color:#fff;font-size:11px;border-radius:9px;padding:1px 6px;margin-left:5px}
+header .right{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px;color:#c9cdd6}
+.toolbar{display:flex;align-items:center;gap:10px;padding:14px 20px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:56px;z-index:20;flex-wrap:wrap}
+.period{display:flex;align-items:center;gap:6px}
+.period .lbl{font-weight:700;font-size:16px;min-width:230px;text-align:center}
+.period .lbl small{display:block;font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 12px;font-weight:600;white-space:nowrap}
+.btn:hover{border-color:var(--ink3)}
+.btn.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn.acc{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.okb{background:var(--ok);color:#fff;border-color:var(--ok)}
+.btn.sm{padding:4px 9px;font-size:12.5px}
+.btn.link{border:0;background:none;color:var(--accent);padding:2px 4px}
+.btn:disabled{opacity:.45;cursor:default}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:var(--panel);padding:7px 11px;font-weight:600;color:var(--ink2)}
+.seg button.on{background:var(--ink);color:#fff}
+.spacer{flex:1}
+main{padding:18px 20px 60px;max-width:1500px;margin:0 auto}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.card .k{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
+.card .v{font-family:var(--mono);font-size:24px;font-weight:700;margin-top:4px}
+.card .v small{font-size:12px;color:var(--ink3);font-family:var(--sans);font-weight:600;margin-left:4px}
+.card.warn{border-color:#f1d29b;background:var(--warnbg)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:16px}
+.panel h3{margin:0;padding:12px 14px;font-size:14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+table.t{width:100%;border-collapse:collapse}
+.t th{text-align:left;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);padding:9px 10px;border-bottom:1px solid var(--line);background:#fbfaf7;white-space:nowrap;position:sticky;top:0}
+.t td{padding:8px 10px;border-bottom:1px solid var(--line2);vertical-align:top}
+.t td.n,.t th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.t tr.click{cursor:pointer} .t tr.click:hover td{background:#fbf8f2}
+.t tr.tot td{font-weight:800;border-top:2px solid var(--ink);background:#fbfaf7}
+.t tr.daysep td{background:#f8f6f1;font-weight:700;font-size:12.5px;color:var(--ink2);padding:6px 10px}
+.t tr.wksep td{background:var(--ink);color:#fff;font-weight:700;font-size:12.5px}
+.t td.muted,.muted{color:var(--ink3)}
+.zero{color:#c8c3b8}
+.pill{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:2px 7px;border-radius:5px;white-space:nowrap}
+.pill.Open{background:#f1efe9;color:var(--ink2)} .pill.Submitted{background:var(--subbg);color:var(--sub)} .pill.Approved{background:var(--okbg);color:var(--ok)}
+.pill.Pending{background:var(--warnbg);color:var(--warn)} .pill.Active{background:var(--okbg);color:var(--ok)} .pill.Closed{background:#eee;color:#666}
+.pill.Job{background:#dfe6f2;color:#23395d} .pill.Travel{background:#f8ebd2;color:#7a4f0f} .pill.Shop{background:#e3e9dd;color:#4a5a40}
+.pill.Break{background:#eee;color:#666} .pill.PTO{background:#ece2f5;color:#7b4fa0} .pill.Holiday{background:#fde4d6;color:#c2410c}
+.flag{display:inline-block;font-size:11.5px;color:var(--warn);background:var(--warnbg);border-radius:5px;padding:1px 6px;margin:1px 3px 1px 0;white-space:nowrap}
+.flag.bad{color:var(--bad);background:var(--badbg)}
+.ot{color:var(--accent);font-weight:800}
+.empsel{display:flex;align-items:center;gap:6px}
+.empsel select{padding:7px 10px;border:1px solid var(--line);border-radius:8px;min-width:200px;font-weight:600;background:#fff}
+.search{padding:7px 10px;border:1px solid var(--line);border-radius:8px;min-width:240px}
+.chk{width:16px;height:16px;accent-color:var(--ink)}
+.onote{font-size:12px;color:var(--warn)}
+.expand td{background:#fcfbf8}
+.inner{width:100%;border-collapse:collapse;font-size:13px}
+.inner td{padding:4px 8px;border-bottom:1px dashed var(--line)}
+
+/* login */
+.gate{min-height:100vh;display:grid;place-items:center;padding:20px}
+.gate .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:30px;width:380px;box-shadow:0 10px 40px rgba(0,0,0,.06)}
+.gate h1{margin:0 0 4px;font-size:22px}
+.gate p{margin:0 0 18px;color:var(--ink2)}
+.gate label{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);margin:12px 0 5px}
+.gate input[type=text],.gate input[type=password]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px}
+.err{color:var(--bad);font-weight:600;min-height:20px;margin-top:10px}
+
+/* modal */
+.scrim{position:fixed;inset:0;background:rgba(15,18,26,.45);display:grid;place-items:center;z-index:50}
+.modal{background:var(--panel);border-radius:12px;width:520px;max-width:94vw;max-height:90vh;overflow:auto;padding:20px 22px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal h3{margin:0 0 14px;font-size:17px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}
+.form .full{grid-column:1/-1}
+.form label{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);margin-bottom:4px}
+.form input,.form select,.form textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:#fff}
+.form textarea{min-height:60px}
+.modal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.modal .acts .left{margin-right:auto}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.loading{position:fixed;top:56px;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,var(--accent),transparent);background-size:50% 100%;animation:ld 1s linear infinite;z-index:40}
+@keyframes ld{from{background-position:-50% 0}to{background-position:150% 0}}
+.help{color:var(--ink2);font-size:13px;margin:-4px 0 12px}
+
+/* print */
+#printArea{display:none}
+@media print{
+  @page{margin:.5in}
+  body{background:#fff;font-size:11px}
+  body.printing > *:not(#printArea){display:none!important}
+  body.printing #printArea{display:block}
+  .pr-page{page-break-after:always}
+  .pr-page:last-child{page-break-after:auto}
+  .pr-head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:10px}
+  .pr-head h1{font-size:18px;margin:0} .pr-head div{text-align:right;font-size:11px}
+  table.t th{position:static;background:#eee!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .t td,.t th{padding:4px 6px}
+  .t tr.wksep td{background:#ddd!important;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .sig{display:flex;gap:40px;margin-top:30px} .sig div{flex:1;border-top:1px solid #000;padding-top:4px;font-size:10px}
+}
+</style>
+</head>
+<body>
+
+<section id="vLogin" class="gate hidden">
+  <div class="box">
+    <div class="logo" style="color:var(--ink);margin-bottom:16px"><span class="pc">⏱</span>Timecard <small style="color:var(--ink3)">Office</small></div>
+    <h1>Payroll &amp; job time</h1>
+    <p>Sign in with the office password.</p>
+    <div id="apiRow"><label>Server link (Apps Script URL, or <b>demo</b>)</label><input type="text" id="lgApi" placeholder="https://script.google.com/macros/s/…/exec"></div>
+    <label>Your name</label><input type="text" id="lgUser" autocomplete="username">
+    <label>Password</label><input type="password" id="lgPw" autocomplete="current-password">
+    <div id="lgDemo" class="help hidden" style="margin-top:8px">Demo sign-in: name <b>Demo</b>, password <b>demodemo</b></div>
+    <div class="err" id="lgErr"></div>
+    <button class="btn pri" id="lgGo" style="width:100%;padding:10px">Sign in</button>
+  </div>
+</section>
+
+<section id="vApp" class="hidden">
+  <header class="bar">
+    <div class="logo"><span class="pc">⏱</span>Timecard <small>Office</small></div>
+    <nav class="tabs" id="tabs">
+      <button data-v="payroll" class="on">Payroll</button>
+      <button data-v="sheets">Timesheets</button>
+      <button data-v="jobhours">Job Hours</button>
+      <button data-v="jobs">Job List</button>
+      <button data-v="emps">Employees</button>
+      <button data-v="qb">QuickBooks</button>
+    </nav>
+    <div class="right"><span id="coName"></span><span id="meName" style="color:#fff;font-weight:600"></span><button class="btn sm" id="chgPw" style="background:transparent;color:#c9cdd6;border-color:#3a4050">Change password</button><button class="btn sm" id="signOut" style="background:transparent;color:#c9cdd6;border-color:#3a4050">Sign out</button></div>
+  </header>
+  <div class="loading hidden" id="loading"></div>
+  <div class="toolbar" id="toolbar">
+    <div class="seg" id="rangeMode"><button data-m="period" class="on">Pay period</button><button data-m="week">Week</button><button data-m="custom">Custom</button></div>
+    <div class="period">
+      <button class="btn" id="pPrev">‹</button>
+      <div class="lbl" id="pLabel"></div>
+      <button class="btn" id="pNext">›</button>
+    </div>
+    <div id="customRange" class="hidden" style="display:flex;gap:6px;align-items:center"><input type="date" id="cFrom" class="search" style="min-width:0"> to <input type="date" id="cTo" class="search" style="min-width:0"></div>
+    <button class="btn" id="pToday">Current</button>
+    <div class="spacer"></div>
+    <button class="btn" id="refreshBtn">↻ Refresh</button>
+    <button class="btn" id="printBtn">🖨 Print</button>
+    <button class="btn acc" id="xlsBtn">⬇ Export to Excel</button>
+  </div>
+  <main id="view"></main>
+</section>
+
+<div id="modalHost"></div>
+<div id="printArea"></div>
+
+<script>
+const BAKED_API_URL = '';   // paste the same Apps Script URL here so the office never has to type it
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2,'0');
+const iso = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d, 12); };
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate()+n); return iso(d); };
+const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
+const todayISO = () => iso(new Date());
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fmtS = s => { const d = parse(s); return MON[d.getMonth()]+' '+d.getDate(); };
+const fmtL = s => { const d = parse(s); return DOW[d.getDay()]+' '+MON[d.getMonth()]+' '+d.getDate(); };
+const fmtUS = s => { const d = parse(s); return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear(); };
+const h2 = h => (Math.round((+h||0)*100)/100).toFixed(2);
+const hz = h => (+h ? h2(h) : '<span class="zero">–</span>');
+const to12 = t => { if(!t) return ''; let [h,m] = t.split(':').map(Number); const ap = h>=12?'p':'a'; h = h%12||12; return h+':'+pad(m)+ap; };
+const ss = { get(k){ return localStorage.getItem('tto.'+k); }, set(k, v){ localStorage.setItem('tto.'+k, v); }, clear(){ localStorage.removeItem('tto.token'); localStorage.removeItem('tto.pw'); sessionStorage.removeItem('tto.pw'); } };
+
+const S = {
+  api: ss.get('api') || BAKED_API_URL, token: ss.get('token'), lastRefresh: 0, lastAct: Date.now(), user: localStorage.getItem('tto.user') || '', me: '', bootstrap: false, users: [],
+  settings: { WeekStart:0, OTThreshold:40, TravelPaid:true, PayPeriod:'biweekly', PayPeriodAnchor:'2026-01-04', CompanyName:'' },
+  employees: [], jobs: [], entries: [],
+  view: 'payroll', mode: 'period', anchor: todayISO(), cFrom: '', cTo: '',
+  emp: '', sel: new Set(), jobQ: '', jobFilter: 'Active', expanded: new Set(), loadedRange: '', qbApprovedOnly: true, qbSkipExported: true, lastExport: null
+};
+
+/* ---------- backend ---------- */
+let demoLoaded = null;
+function loadDemo(){ if (!demoLoaded) demoLoaded = new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'demo-backend.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); return demoLoaded; }
+async function call(action, payload){
+  payload = Object.assign(S.token && !(payload && payload.password) ? { token: S.token } : {}, payload || {});
+  let out;
+  $('#loading') && $('#loading').classList.remove('hidden');
+  try {
+    if (S.api === 'demo') { await loadDemo(); out = await window.DemoBackend.call(action, payload); }
+    else {
+      let r;
+      try { r = await fetch(S.api, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(Object.assign({action}, payload)) }); }
+      catch (e) { throw new Error('Can\'t reach the server. Check your connection.'); }
+      out = await r.json();
+    }
+  } finally { $('#loading') && $('#loading').classList.add('hidden'); }
+  if (out && out.error) { const e = new Error(out.error.replace(/^(AUTH|LOCKED): /, '')); e.auth = /^AUTH:/.test(out.error); throw e; }
+  if (out && out.token) { S.token = out.token; ss.set('token', out.token); S.lastRefresh = Date.now(); }
+  return out;
+}
+function toast(m, ms){ const t = document.createElement('div'); t.className = 'toast'; t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), ms || 2500); }
+function fail(e){ if (e.auth) { signOutLocal(e.message); return; } toast(e.message, 4500); }
+function signOutLocal(msg){ ss.clear(); S.token = null; closeModal(); showLogin(msg); }
+
+/* ---------- login ---------- */
+function showLogin(msg){
+  $('#vLogin').classList.remove('hidden'); $('#vApp').classList.add('hidden');
+  $('#lgErr').textContent = msg || '';
+  $('#apiRow').classList.toggle('hidden', !!BAKED_API_URL);
+  $('#lgApi').value = S.api || '';
+  $('#lgUser').value = S.user || '';
+  const demoHint = () => $('#lgDemo').classList.toggle('hidden', (BAKED_API_URL || $('#lgApi').value.trim()) !== 'demo');
+  $('#lgApi').oninput = demoHint; demoHint();
+  setTimeout(() => (!BAKED_API_URL && !S.api ? $('#lgApi') : S.user ? $('#lgPw') : $('#lgUser')).focus(), 50);
+}
+$('#lgGo').onclick = login;
+$('#lgPw').onkeydown = $('#lgUser').onkeydown = e => { if (e.key === 'Enter') login(); };
+async function login(){
+  $('#lgErr').textContent = '';
+  S.api = BAKED_API_URL || $('#lgApi').value.trim();
+  const pw = $('#lgPw').value;
+  S.user = $('#lgUser').value.trim();
+  S.token = null; ss.clear();
+  if (!S.api) { $('#lgErr').textContent = 'Enter the server link'; return; }
+  if (!S.user) { $('#lgErr').textContent = 'Enter your name'; return; }
+  try {
+    const r = await call('adminLogin', { user: S.user, password: pw });
+    localStorage.setItem('tto.api', S.api); localStorage.setItem('tto.user', S.user);
+    $('#lgPw').value = ''; S.lastAct = Date.now();
+    S.settings = r.settings; S.me = r.user; S.bootstrap = r.bootstrap;
+    start();
+  } catch (e) { $('#lgErr').textContent = e.message; }
+}
+$('#signOut').onclick = () => signOutLocal();
+// idle sign-out: the server also refuses a token that's been idle too long
+['mousemove','mousedown','keydown','scroll','touchstart'].forEach(ev => document.addEventListener(ev, () => { S.lastAct = Date.now(); }, { passive: true }));
+setInterval(() => {
+  if (!S.token || $('#vApp').classList.contains('hidden')) return;
+  const idleMs = (S.settings.OfficeIdleMinutes || 30) * 60000;
+  if (Date.now() - S.lastAct > idleMs) { signOutLocal('Signed out after ' + (S.settings.OfficeIdleMinutes || 30) + ' minutes of no activity.'); return; }
+  // keep the session alive while someone is working, even if they aren't clicking anything that talks to the server
+  if (S.lastAct > S.lastRefresh && Date.now() - S.lastRefresh > Math.min(4 * 60000, idleMs / 3)) call('adminPing').catch(fail);
+}, 20000);
+$('#chgPw').onclick = () => {
+  if (S.bootstrap) { toast('Create your own office user on the Employees tab first, then sign in with it.', 5000); S.view = 'emps'; render(); return; }
+  modal(`<h3>Change my password</h3><div class="form" style="grid-template-columns:1fr">
+    <div><label>New password (8+ characters)</label><input type="password" id="cp1" autocomplete="new-password"></div>
+    <div><label>Type it again</label><input type="password" id="cp2" autocomplete="new-password"></div></div><div class="err" id="cpErr"></div>
+    <div class="acts"><button class="btn" data-close>Cancel</button><button class="btn pri" id="cpGo">Change password</button></div>`);
+  $('#cpGo').onclick = async () => {
+    if ($('#cp1').value !== $('#cp2').value) { $('#cpErr').textContent = "Passwords don't match"; return; }
+    try { await call('adminChangePassword', { newPassword: $('#cp1').value }); closeModal(); toast('Password changed'); }
+    catch (e) { $('#cpErr').textContent = e.message; }
+  };
+};
+
+/* ---------- ranges ---------- */
+function weekStartOf(s){ const ws = S.settings.WeekStart || 0; const back = (parse(s).getDay() - ws + 7) % 7; return addDays(s, -back); }
+function periodOf(s){
+  if (S.mode === 'week') { const a = weekStartOf(s); return [a, addDays(a, 6)]; }
+  if (S.mode === 'custom') return [S.cFrom || weekStartOf(s), S.cTo || addDays(weekStartOf(s), 6)];
+  const len = S.settings.PayPeriod === 'weekly' ? 7 : 14;
+  const anchor = S.settings.PayPeriodAnchor && /^\d{4}-\d{2}-\d{2}$/.test(S.settings.PayPeriodAnchor) ? S.settings.PayPeriodAnchor : weekStartOf(s);
+  const k = Math.floor(daysBetween(anchor, s) / len);
+  const a = addDays(anchor, k * len);
+  return [a, addDays(a, len - 1)];
+}
+function range(){ return periodOf(S.anchor); }
+function weeksIn(from, to){ const out = []; let w = weekStartOf(from); while (w <= to) { out.push(w); w = addDays(w, 7); } return out; }
+
+/* ---------- load ---------- */
+async function start(){
+  S.view = 'payroll';
+  $('#vLogin').classList.add('hidden'); $('#vApp').classList.remove('hidden');
+  $('#coName').textContent = S.settings.CompanyName || '';
+  await load();
+}
+async function load(){
+  const [from, to] = range();
+  // fetch whole workweeks so overtime is computed on full weeks
+  const f = weekStartOf(from), t = addDays(weekStartOf(to), 6);
+  try {
+    const r = await call('adminLoad', { from: f, to: t });
+    S.employees = r.employees; S.jobs = r.jobs; S.entries = r.entries; S.settings = r.settings; S.users = r.users || []; S.me = r.user; S.bootstrap = r.bootstrap;
+    $('#meName').textContent = S.me;
+    $('#coName').textContent = S.settings.CompanyName || '';
+    S.sel.clear();
+  } catch (e) { fail(e); }
+  render();
+}
+
+/* ---------- calculations ---------- */
+const isPaid = e => e.Type === 'Job' || e.Type === 'Shop' || (e.Type === 'Travel' && S.settings.TravelPaid);
+const sum = (l, f) => l.reduce((s, e) => s + (f ? (f(e) ? +e.Hours : 0) : +e.Hours), 0);
+const empName = id => { const e = S.employees.find(x => x.EmpID === id); return e ? e.Name : id; };
+const job = no => S.jobs.find(j => j.JobNo === no);
+function inRange(e){ const [f, t] = range(); return e.Date >= f && e.Date <= t; }
+
+/** Per employee summary for the selected range. OT is per FLSA workweek. */
+function summarize(empId){
+  const [from, to] = range();
+  const all = S.entries.filter(e => e.EmpID === empId);
+  const list = all.filter(inRange);
+  const weeks = weeksIn(from, to).map(ws => {
+    const we = addDays(ws, 6);
+    const wkAll = all.filter(e => e.Date >= ws && e.Date <= we);         // full week (for OT)
+    const wkIn = wkAll.filter(inRange);                                    // part inside range
+    const paidAll = sum(wkAll, isPaid);
+    const otWeek = Math.max(0, paidAll - S.settings.OTThreshold);
+    const partial = ws < from || we > to;
+    const paidIn = sum(wkIn, isPaid);
+    // if the range cuts a week, OT is assigned to the days at the end of the week that fall in range
+    let ot = otWeek;
+    if (partial && otWeek) { const before = sum(wkAll.filter(e => e.Date < from), isPaid); const cap = Math.max(0, before + paidIn - S.settings.OTThreshold); ot = Math.min(otWeek, cap, paidIn); }
+    return { ws, we, partial, paid: paidIn, reg: paidIn - ot, ot,
+      job: sum(wkIn, e => e.Type === 'Job'), shop: sum(wkIn, e => e.Type === 'Shop'), travel: sum(wkIn, e => e.Type === 'Travel'),
+      pto: sum(wkIn, e => e.Type === 'PTO'), hol: sum(wkIn, e => e.Type === 'Holiday'), brk: sum(wkIn, e => e.Type === 'Break') };
+  });
+  const t = k => weeks.reduce((s, w) => s + w[k], 0);
+  const flags = [];
+  const days = {}; list.forEach(e => { (days[e.Date] = days[e.Date] || []).push(e); });
+  for (let d = from; d <= to && d < todayISO(); d = addDays(d, 1)) {
+    const dow = parse(d).getDay();
+    if (dow !== 0 && dow !== 6 && !days[d]) flags.push({ t: 'No time ' + DOW[dow] + ' ' + fmtS(d) });
+  }
+  Object.keys(days).forEach(d => {
+    const p = sum(days[d], isPaid);
+    if (p > 12) flags.push({ t: h2(p) + ' hrs on ' + fmtS(d), bad: true });
+    if (p >= 6 && !days[d].some(e => e.Type === 'Break')) flags.push({ t: 'No break ' + fmtS(d) });
+  });
+  const pendingJobs = [...new Set(list.filter(e => e.JobNo && (!job(e.JobNo) || job(e.JobNo).Status === 'Pending')).map(e => e.JobNo))];
+  pendingJobs.forEach(j => flags.push({ t: 'Unconfirmed job ' + j, bad: true }));
+  const st = { Open: 0, Submitted: 0, Approved: 0 }; list.forEach(e => st[e.Status] = (st[e.Status] || 0) + 1);
+  return { list, weeks, reg: t('reg'), ot: t('ot'), paid: t('paid'), job: t('job'), shop: t('shop'), travel: t('travel'), pto: t('pto'), hol: t('hol'), brk: t('brk'), days: Object.keys(days).length, flags, st };
+}
+function statusOf(st){
+  const n = st.Open + st.Submitted + st.Approved;
+  if (!n) return '<span class="muted">No time</span>';
+  if (st.Approved === n) return '<span class="pill Approved">Approved</span>';
+  if (st.Open === 0) return st.Approved ? '<span class="pill Submitted">Partly approved</span>' : '<span class="pill Submitted">Submitted</span>';
+  return `<span class="pill Open">${st.Open} open</span>` + (st.Submitted ? ` <span class="pill Submitted">${st.Submitted} sub</span>` : '');
+}
+
+/* ---------- render ---------- */
+function render(){
+  const [from, to] = range();
+  $('#pLabel').innerHTML = `${fmtS(from)} – ${fmtS(to)}, ${parse(to).getFullYear()}<small>${S.mode === 'period' ? (S.settings.PayPeriod === 'weekly' ? 'Weekly' : 'Bi-weekly') + ' pay period' : S.mode === 'week' ? 'Workweek' : 'Custom range'}${from <= todayISO() && todayISO() <= to ? ' · current' : ''}</small>`;
+  $('#customRange').classList.toggle('hidden', S.mode !== 'custom');
+  $('#customRange').style.display = S.mode === 'custom' ? 'flex' : '';
+  ['#pPrev','#pNext','#pToday'].forEach(s => $(s).classList.toggle('hidden', S.mode === 'custom'));
+  document.querySelectorAll('#rangeMode button').forEach(b => b.classList.toggle('on', b.dataset.m === S.mode));
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === S.view));
+  const pend = S.jobs.filter(j => j.Status === 'Pending').length;
+  $('#tabs [data-v=jobs]').innerHTML = 'Job List' + (pend ? `<span class="badge">${pend}</span>` : '');
+  $('#toolbar').classList.toggle('hidden', S.view === 'emps');
+  let banner = $('#bootBanner');
+  if (S.bootstrap && !banner) { banner = document.createElement('div'); banner.id = 'bootBanner'; banner.style.cssText = 'background:#fff4e0;color:#7a3d00;padding:10px 20px;border-bottom:1px solid #f1d29b;font-weight:600';
+    banner.innerHTML = 'First-time setup: you signed in with the setup password. Go to <a href="#" id="bootGo">Employees → Office users</a> and create a login for each office person. The setup password stops working after the first one is created.';
+    $('#toolbar').before(banner); $('#bootGo').onclick = ev => { ev.preventDefault(); S.view = 'emps'; render(); }; }
+  if (!S.bootstrap && banner) banner.remove();
+  ({ payroll: renderPayroll, sheets: renderSheets, jobhours: renderJobHours, jobs: renderJobs, emps: renderEmps, qb: renderQB })[S.view]();
+}
+
+function activeEmps(){
+  return S.employees.filter(e => String(e.Active).toUpperCase() !== 'FALSE' || S.entries.some(x => x.EmpID === e.EmpID && inRange(x))).sort((a, b) => a.Name.localeCompare(b.Name));
+}
+
+/* PAYROLL */
+function renderPayroll(){
+  const rows = activeEmps().map(e => ({ e, s: summarize(e.EmpID) }));
+  const T = k => rows.reduce((s, r) => s + r.s[k], 0);
+  const submitted = S.entries.filter(x => inRange(x) && x.Status === 'Submitted').length;
+  const open = S.entries.filter(x => inRange(x) && x.Status === 'Open').length;
+  $('#view').innerHTML = `
+    <div class="cards">
+      <div class="card"><div class="k">Regular</div><div class="v">${h2(T('reg'))}<small>hrs</small></div></div>
+      <div class="card"><div class="k">Overtime</div><div class="v ${T('ot') ? 'ot' : ''}">${h2(T('ot'))}<small>hrs</small></div></div>
+      <div class="card"><div class="k">PTO + Holiday</div><div class="v">${h2(T('pto') + T('hol'))}<small>hrs</small></div></div>
+      <div class="card"><div class="k">Travel (incl.)</div><div class="v">${h2(T('travel'))}<small>hrs</small></div></div>
+      <div class="card ${open ? 'warn' : ''}"><div class="k">Not yet submitted</div><div class="v">${open}<small>entries</small></div></div>
+      <div class="card"><div class="k">Waiting approval</div><div class="v">${submitted}<small>entries</small></div></div>
+    </div>
+    <div class="panel"><h3>Payroll summary <span class="muted" style="font-weight:500">— OT is calculated per workweek over ${S.settings.OTThreshold} paid hrs${S.settings.TravelPaid ? ', travel counted as paid' : ''}</span>
+      <span class="spacer"></span><button class="btn sm okb" id="apprAll" ${submitted ? '' : 'disabled'}>✓ Approve all submitted (${submitted})</button></h3>
+    <table class="t"><thead><tr><th>Employee</th><th class="n">Days</th><th class="n">Job</th><th class="n">Shop</th><th class="n">Travel</th><th class="n">Regular</th><th class="n">OT</th><th class="n">PTO</th><th class="n">Holiday</th><th class="n">Total paid</th><th class="n">Breaks</th><th>Status</th><th>Check</th></tr></thead>
+    <tbody>${rows.map(({ e, s }) => `<tr class="click" data-emp="${esc(e.EmpID)}">
+      <td><b>${esc(e.Name)}</b>${String(e.Active).toUpperCase() === 'FALSE' ? ' <span class="pill Closed">inactive</span>' : ''}</td>
+      <td class="n">${s.days || '<span class="zero">–</span>'}</td><td class="n">${hz(s.job)}</td><td class="n">${hz(s.shop)}</td><td class="n">${hz(s.travel)}</td>
+      <td class="n"><b>${hz(s.reg)}</b></td><td class="n ${s.ot ? 'ot' : ''}">${hz(s.ot)}</td><td class="n">${hz(s.pto)}</td><td class="n">${hz(s.hol)}</td>
+      <td class="n"><b>${hz(s.reg + s.ot + s.pto + s.hol)}</b></td><td class="n muted">${hz(s.brk)}</td>
+      <td>${statusOf(s.st)}</td>
+      <td>${s.flags.slice(0, 3).map(f => `<span class="flag ${f.bad ? 'bad' : ''}">${esc(f.t)}</span>`).join('')}${s.flags.length > 3 ? `<span class="flag">+${s.flags.length - 3} more</span>` : ''}</td></tr>`).join('')}
+    <tr class="tot"><td>Total (${rows.length})</td><td></td><td class="n">${h2(T('job'))}</td><td class="n">${h2(T('shop'))}</td><td class="n">${h2(T('travel'))}</td><td class="n">${h2(T('reg'))}</td><td class="n">${h2(T('ot'))}</td><td class="n">${h2(T('pto'))}</td><td class="n">${h2(T('hol'))}</td><td class="n">${h2(T('reg') + T('ot') + T('pto') + T('hol'))}</td><td class="n">${h2(T('brk'))}</td><td colspan="2"></td></tr>
+    </tbody></table></div>
+    <p class="muted">Click an employee to review, edit, approve or send back their timesheet.</p>`;
+  document.querySelectorAll('#view tr[data-emp]').forEach(tr => tr.onclick = () => { S.emp = tr.dataset.emp; S.view = 'sheets'; render(); });
+  $('#apprAll').onclick = async () => {
+    const ids = S.entries.filter(x => inRange(x) && x.Status === 'Submitted').map(x => x.EntryID);
+    if (!confirm(`Approve ${ids.length} submitted entries for ${fmtS(range()[0])} – ${fmtS(range()[1])}?`)) return;
+    await setStatus(ids, 'Approved');
+  };
+}
+
+async function setStatus(ids, status, note){
+  if (!ids.length) return;
+  try {
+    const r = await call('adminSetStatus', { ids, status, note });
+    const m = {}; r.entries.forEach(e => m[e.EntryID] = e);
+    S.entries = S.entries.map(e => m[e.EntryID] || e);
+    S.sel.clear(); toast(`${r.updated} entries → ${status}`); render();
+  } catch (e) { fail(e); }
+}
+
+/* TIMESHEETS */
+function renderSheets(){
+  const emps = activeEmps();
+  if (!S.emp || !emps.some(e => e.EmpID === S.emp)) S.emp = emps[0] ? emps[0].EmpID : '';
+  const s = S.emp ? summarize(S.emp) : null;
+  const idx = emps.findIndex(e => e.EmpID === S.emp);
+  let body = '';
+  if (s) {
+    s.weeks.forEach(w => {
+      body += `<tr class="wksep"><td colspan="10">Week of ${fmtS(w.ws)}${w.partial ? ' (partial)' : ''} — Regular ${h2(w.reg)} · OT ${h2(w.ot)} · PTO/Hol ${h2(w.pto + w.hol)} · Breaks ${h2(w.brk)}</td></tr>`;
+      const [from, to] = range();
+      for (let d = w.ws > from ? w.ws : from; d <= w.we && d <= to; d = addDays(d, 1)) {
+        const list = s.list.filter(e => e.Date === d).sort((a, b) => (a.Start || '99').localeCompare(b.Start || '99'));
+        body += `<tr class="daysep"><td colspan="10">${fmtL(d)} <span style="float:right" class="num">${list.length ? h2(sum(list, isPaid) + sum(list, e => e.Type === 'PTO' || e.Type === 'Holiday')) + ' paid' : '<span class="muted">no time</span>'}</span></td></tr>`;
+        body += list.map(e => { const j = job(e.JobNo); return `<tr data-id="${esc(e.EntryID)}">
+          <td><input type="checkbox" class="chk" data-c="${esc(e.EntryID)}" ${S.sel.has(e.EntryID) ? 'checked' : ''}></td>
+          <td><span class="pill ${e.Type}">${e.Type}</span></td>
+          <td class="num"><b>${esc(e.JobNo)}</b>${j && j.Status === 'Pending' ? ' <span class="pill Pending">pending</span>' : (e.JobNo && !j ? ' <span class="flag bad">not on list</span>' : '')}</td>
+          <td class="muted">${esc(j ? (j.Description || j.Customer) : '')}</td>
+          <td class="num muted">${e.Start ? to12(e.Start) + '–' + to12(e.End) : ''}</td>
+          <td class="n ${isPaid(e) || e.Type === 'PTO' || e.Type === 'Holiday' ? '' : 'muted'}">${h2(e.Hours)}</td>
+          <td>${esc(e.Notes)}${e.OfficeNote ? `<div class="onote">Office: ${esc(e.OfficeNote)}</div>` : ''}</td>
+          <td><span class="pill ${e.Status}">${e.Status}</span>${e.QBExported ? (/^EDITED/.test(e.QBExported) ? '<br><span class="flag bad" title="Changed after it was sent to QuickBooks — fix it in QuickBooks too">edited after QB</span>' : '<br><span class="pill Active" title="Sent to QuickBooks ' + esc(e.QBExported) + '">in QB</span>') : ''}</td>
+          <td class="muted" style="font-size:12px">${esc(e.UpdatedBy)}<br>${esc(e.UpdatedAt)}</td>
+          <td><button class="btn sm" data-edit="${esc(e.EntryID)}">Edit</button></td></tr>`; }).join('');
+      }
+    });
+  }
+  $('#view').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <div class="empsel"><button class="btn" id="ePrev" ${idx <= 0 ? 'disabled' : ''}>‹</button>
+        <select id="empPick">${emps.map(e => `<option value="${esc(e.EmpID)}" ${e.EmpID === S.emp ? 'selected' : ''}>${esc(e.Name)}</option>`).join('')}</select>
+        <button class="btn" id="eNext" ${idx >= emps.length - 1 ? 'disabled' : ''}>›</button></div>
+      ${s ? `<div class="muted">Regular <b class="num" style="color:var(--ink)">${h2(s.reg)}</b> · OT <b class="num ot">${h2(s.ot)}</b> · PTO/Hol <b class="num" style="color:var(--ink)">${h2(s.pto + s.hol)}</b> · ${statusOf(s.st)}</div>` : ''}
+      <span class="spacer"></span>
+      <button class="btn" id="addEntry">＋ Add entry</button>
+    </div>
+    ${s && s.flags.length ? `<div style="margin-bottom:12px">${s.flags.map(f => `<span class="flag ${f.bad ? 'bad' : ''}">${esc(f.t)}</span>`).join('')}</div>` : ''}
+    <div class="panel"><h3><label style="display:flex;align-items:center;gap:6px;font-weight:600"><input type="checkbox" class="chk" id="selAll"> Select all</label>
+      <span class="muted" id="selCount" style="font-weight:500"></span><span class="spacer"></span>
+      <button class="btn sm okb" id="bApprove">✓ Approve</button>
+      <button class="btn sm" id="bReturn">↩ Send back to tech</button>
+      <button class="btn sm" id="bReopen">Mark submitted</button>
+      <button class="btn sm" id="bDelete" style="color:var(--bad)">Delete</button></h3>
+    <table class="t"><thead><tr><th></th><th>Type</th><th>Job #</th><th>Job</th><th>Time</th><th class="n">Hours</th><th>Notes</th><th>Status</th><th>Last change</th><th></th></tr></thead><tbody>${body || '<tr><td colspan="10" class="muted">No employees.</td></tr>'}</tbody></table></div>`;
+  const updSel = () => { $('#selCount').textContent = S.sel.size ? S.sel.size + ' selected' : ''; ['#bApprove','#bReturn','#bReopen','#bDelete'].forEach(b => $(b).disabled = !S.sel.size); };
+  updSel();
+  $('#empPick').onchange = e => { S.emp = e.target.value; S.sel.clear(); render(); };
+  $('#ePrev').onclick = () => { S.emp = emps[idx - 1].EmpID; S.sel.clear(); render(); };
+  $('#eNext').onclick = () => { S.emp = emps[idx + 1].EmpID; S.sel.clear(); render(); };
+  $('#view').onchange = (e => { const c = e.target.dataset && e.target.dataset.c; if (c) { e.target.checked ? S.sel.add(c) : S.sel.delete(c); updSel(); } });
+  $('#selAll').onchange = e => { S.sel.clear(); if (e.target.checked && s) s.list.forEach(x => S.sel.add(x.EntryID)); document.querySelectorAll('[data-c]').forEach(c => c.checked = e.target.checked); updSel(); };
+  document.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editEntry(S.entries.find(e => e.EntryID === b.dataset.edit)));
+  $('#addEntry').onclick = () => editEntry(null);
+  $('#bApprove').onclick = () => setStatus([...S.sel], 'Approved');
+  $('#bReopen').onclick = () => setStatus([...S.sel], 'Submitted');
+  $('#bReturn').onclick = () => {
+    modal(`<h3>Send back to ${esc(empName(S.emp))}</h3><p class="help">These ${S.sel.size} entries will unlock so the tech can fix them. Your note shows on their phone.</p>
+      <div class="form"><div class="full"><label>Note to tech</label><textarea id="rtNote" placeholder="e.g. Tuesday travel should be on the GHS job"></textarea></div></div>
+      <div class="acts"><button class="btn" data-close>Cancel</button><button class="btn pri" id="rtGo">Send back</button></div>`);
+    $('#rtGo').onclick = () => { const n = $('#rtNote').value.trim(); closeModal(); setStatus([...S.sel], 'Open', n || 'Please review'); };
+  };
+  $('#bDelete').onclick = async () => {
+    if (!confirm(`Permanently delete ${S.sel.size} entries?`)) return;
+    try { const ids = [...S.sel]; await call('adminDeleteEntries', { ids }); S.entries = S.entries.filter(e => !ids.includes(e.EntryID)); S.sel.clear(); toast('Deleted'); render(); } catch (e) { fail(e); }
+  };
+}
+
+/* entry editor */
+function editEntry(e){
+  const isNew = !e;
+  const [from] = range();
+  e = e || { EntryID: 'o' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), EmpID: S.emp, Date: from <= todayISO() && todayISO() <= range()[1] ? todayISO() : from, Type: 'Job', JobNo: '', Start: '', End: '', Hours: 8, Notes: '', Status: 'Approved', OfficeNote: '' };
+  modal(`<h3>${isNew ? 'Add entry' : 'Edit entry'} — ${esc(empName(e.EmpID))}</h3>
+    <div class="form">
+      <div><label>Date</label><input type="date" id="fDate" value="${esc(e.Date)}"></div>
+      <div><label>Type</label><select id="fType">${['Job','Travel','Shop','Break','PTO','Holiday'].map(t => `<option ${t === e.Type ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+      <div class="full"><label>Job #</label><input id="fJob" list="jobDL" value="${esc(e.JobNo)}" style="font-family:var(--mono)"><datalist id="jobDL">${S.jobs.map(j => `<option value="${esc(j.JobNo)}">${esc(j.Description || j.Customer)}</option>`).join('')}</datalist></div>
+      <div><label>Start (optional)</label><input type="time" id="fStart" value="${esc(e.Start)}"></div>
+      <div><label>End (optional)</label><input type="time" id="fEnd" value="${esc(e.End)}"></div>
+      <div><label>Hours</label><input type="number" id="fHours" step="0.25" min="0" max="24" value="${esc(e.Hours)}"></div>
+      <div><label>Status</label><select id="fStatus">${['Open','Submitted','Approved'].map(t => `<option ${t === e.Status ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+      <div class="full"><label>Notes</label><input id="fNotes" value="${esc(e.Notes)}"></div>
+      <div class="full"><label>Office note (visible to tech)</label><input id="fONote" value="${esc(e.OfficeNote)}"></div>
+    </div>
+    <div class="err" id="fErr"></div>
+    <div class="acts">${isNew ? '' : '<button class="btn left" id="fDel" style="color:var(--bad)">Delete</button>'}<button class="btn" data-close>Cancel</button><button class="btn pri" id="fSave">Save</button></div>`);
+  const calc = () => { const a = $('#fStart').value, b = $('#fEnd').value; if (a && b) { let d = (+b.slice(0,2)*60 + +b.slice(3)) - (+a.slice(0,2)*60 + +a.slice(3)); if (d < 0) d += 1440; $('#fHours').value = (d/60).toFixed(2); } };
+  $('#fStart').oninput = $('#fEnd').oninput = calc;
+  $('#fSave').onclick = async () => {
+    const x = { EntryID: e.EntryID, EmpID: e.EmpID, Date: $('#fDate').value, Type: $('#fType').value, JobNo: $('#fJob').value.trim().toUpperCase(), Start: $('#fStart').value, End: $('#fEnd').value, Hours: +$('#fHours').value, Notes: $('#fNotes').value, Status: $('#fStatus').value, OfficeNote: $('#fONote').value };
+    try {
+      const r = await call('adminSaveEntries', { entries: [x] });
+      const saved = r.entries[0];
+      S.entries = S.entries.filter(y => y.EntryID !== saved.EntryID).concat([saved]);
+      closeModal(); toast('Saved'); render();
+    } catch (err) { $('#fErr').textContent = err.message; }
+  };
+  if ($('#fDel')) $('#fDel').onclick = async () => {
+    if (!confirm('Delete this entry?')) return;
+    try { await call('adminDeleteEntries', { ids: [e.EntryID] }); S.entries = S.entries.filter(y => y.EntryID !== e.EntryID); closeModal(); render(); } catch (err) { $('#fErr').textContent = err.message; }
+  };
+}
+
+/* JOB HOURS */
+function jobHoursData(){
+  const m = {};
+  S.entries.filter(inRange).filter(e => e.JobNo && (e.Type === 'Job' || e.Type === 'Travel')).forEach(e => {
+    const r = m[e.JobNo] = m[e.JobNo] || { JobNo: e.JobNo, labor: 0, travel: 0, techs: {}, rows: [] };
+    if (e.Type === 'Job') r.labor += +e.Hours; else r.travel += +e.Hours;
+    const t = r.techs[e.EmpID] = r.techs[e.EmpID] || { labor: 0, travel: 0, days: new Set() };
+    if (e.Type === 'Job') t.labor += +e.Hours; else t.travel += +e.Hours;
+    t.days.add(e.Date); r.rows.push(e);
+  });
+  return Object.values(m).sort((a, b) => (b.labor + b.travel) - (a.labor + a.travel));
+}
+function renderJobHours(){
+  const q = S.jobQ.toLowerCase();
+  const data = jobHoursData().filter(r => { const j = job(r.JobNo) || {}; return !q || (r.JobNo + ' ' + (j.Customer || '') + ' ' + (j.Description || '')).toLowerCase().includes(q); });
+  const shop = sum(S.entries.filter(inRange), e => e.Type === 'Shop');
+  const T = k => data.reduce((s, r) => s + r[k], 0);
+  $('#view').innerHTML = `
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><input class="search" id="jq" placeholder="Filter by job #, customer, description" value="${esc(S.jobQ)}"><span class="muted">${data.length} jobs with time · Shop/office (non-job): <b class="num">${h2(shop)}</b> hrs</span></div>
+    <div class="panel"><h3>Hours by job <span class="muted" style="font-weight:500">— click a row for tech breakdown</span></h3>
+    <table class="t"><thead><tr><th>Job #</th><th>Customer</th><th>Description</th><th class="n">Labor</th><th class="n">Travel</th><th class="n">Total</th><th>Techs</th></tr></thead><tbody>
+    ${data.map(r => { const j = job(r.JobNo) || {}; const open = S.expanded.has(r.JobNo); return `<tr class="click" data-j="${esc(r.JobNo)}">
+      <td class="num"><b>${open ? '▾' : '▸'} ${esc(r.JobNo)}</b> ${j.Status === 'Pending' ? '<span class="pill Pending">pending</span>' : !j.JobNo ? '<span class="flag bad">not on list</span>' : ''}</td>
+      <td>${esc(j.Customer || '')}</td><td class="muted">${esc(j.Description || '')}</td>
+      <td class="n">${h2(r.labor)}</td><td class="n">${hz(r.travel)}</td><td class="n"><b>${h2(r.labor + r.travel)}</b></td>
+      <td class="muted">${Object.keys(r.techs).map(empName).join(', ')}</td></tr>
+      ${open ? `<tr class="expand"><td colspan="7"><table class="inner">${Object.entries(r.techs).map(([id, t]) => `<tr><td style="width:220px"><b>${esc(empName(id))}</b></td><td class="num">${t.days.size} day(s)</td><td class="num">Labor ${h2(t.labor)}</td><td class="num">Travel ${h2(t.travel)}</td><td class="num"><b>${h2(t.labor + t.travel)}</b></td></tr>`).join('')}</table></td></tr>` : ''}`; }).join('')}
+    <tr class="tot"><td colspan="3">Total</td><td class="n">${h2(T('labor'))}</td><td class="n">${h2(T('travel'))}</td><td class="n">${h2(T('labor') + T('travel'))}</td><td></td></tr>
+    </tbody></table></div>`;
+  $('#jq').oninput = e => { S.jobQ = e.target.value; const pos = e.target.selectionStart; renderJobHours(); $('#jq').focus(); $('#jq').setSelectionRange(pos, pos); };
+  document.querySelectorAll('tr[data-j]').forEach(tr => tr.onclick = () => { const k = tr.dataset.j; S.expanded.has(k) ? S.expanded.delete(k) : S.expanded.add(k); renderJobHours(); });
+}
+
+/* JOB LIST */
+function renderJobs(){
+  const pending = S.jobs.filter(j => j.Status === 'Pending');
+  const q = S.jobQ.toLowerCase();
+  const list = S.jobs.filter(j => j.Status !== 'Pending' && (S.jobFilter === 'All' || (j.Status || 'Active') === S.jobFilter))
+    .filter(j => !q || (j.JobNo + ' ' + j.Customer + ' ' + j.Description + ' ' + j.PO + ' ' + j.Quote).toLowerCase().includes(q))
+    .sort((a, b) => a.JobNo.localeCompare(b.JobNo));
+  $('#view').innerHTML = `
+    ${pending.length ? `<div class="panel" style="border-color:#f1d29b"><h3 style="background:var(--warnbg)">New job requests from techs (${pending.length})</h3>
+      <table class="t"><thead><tr><th>Requested #</th><th>Customer</th><th>PO</th><th>Quote</th><th>Description</th><th>By</th><th>When</th><th class="n">Hrs posted</th><th></th></tr></thead><tbody>
+      ${pending.map(j => `<tr><td class="num"><b>${esc(j.JobNo)}</b></td><td>${esc(j.Customer)}</td><td>${esc(j.PO)}</td><td>${esc(j.Quote)}</td><td>${esc(j.Description)}</td><td>${esc(j.RequestedBy)}</td><td class="muted">${esc(j.CreatedAt)}</td>
+        <td class="n">${h2(sum(S.entries.filter(e => e.JobNo === j.JobNo)))}</td>
+        <td style="white-space:nowrap"><button class="btn sm okb" data-ok="${esc(j.JobNo)}">Approve</button> <button class="btn sm" data-fix="${esc(j.JobNo)}">Fix / merge…</button></td></tr>`).join('')}
+      </tbody></table></div>` : ''}
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+      <input class="search" id="jq" placeholder="Search jobs" value="${esc(S.jobQ)}">
+      <div class="seg" id="jf">${['Active','Closed','All'].map(f => `<button data-f="${f}" class="${S.jobFilter === f ? 'on' : ''}">${f}</button>`).join('')}</div>
+      <span class="spacer"></span><button class="btn pri" id="addJob">＋ Add job</button></div>
+    <div class="panel"><table class="t"><thead><tr><th>Job #</th><th>Customer</th><th>PO</th><th>Quote</th><th>Description</th><th>QuickBooks Customer:Job</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody>
+      ${list.map(j => `<tr><td class="num"><b>${esc(j.JobNo)}</b></td><td>${esc(j.Customer)}</td><td>${esc(j.PO)}</td><td>${esc(j.Quote)}</td><td>${esc(j.Description)}</td><td>${j.QBJob ? esc(j.QBJob) : (j.JobNo === 'SHOP' ? '<span class="muted">—</span>' : '<span class="flag">not set</span>')}</td><td><span class="pill ${esc(j.Status || 'Active')}">${esc(j.Status || 'Active')}</span></td><td class="muted">${esc(j.CreatedAt)}</td><td><button class="btn sm" data-fix="${esc(j.JobNo)}">Edit</button></td></tr>`).join('') || '<tr><td colspan="9" class="muted">No jobs.</td></tr>'}
+    </tbody></table></div>
+    <p class="muted">Techs only see <b>Active</b> jobs. Set finished jobs to <b>Closed</b> to keep the phone list short — their hours stay in reports.</p>`;
+  $('#jq').oninput = e => { S.jobQ = e.target.value; const pos = e.target.selectionStart; renderJobs(); $('#jq').focus(); $('#jq').setSelectionRange(pos, pos); };
+  $('#jf').onclick = e => { const b = e.target.closest('button'); if (b) { S.jobFilter = b.dataset.f; renderJobs(); } };
+  $('#addJob').onclick = () => editJob(null);
+  document.querySelectorAll('[data-fix]').forEach(b => b.onclick = () => editJob(S.jobs.find(j => j.JobNo === b.dataset.fix)));
+  document.querySelectorAll('[data-ok]').forEach(b => b.onclick = () => saveJob({ JobNo: b.dataset.ok, Status: 'Active' }, b.dataset.ok));
+}
+async function saveJob(j, oldNo){
+  try {
+    const r = await call('adminSaveJob', { job: j, oldJobNo: oldNo });
+    S.jobs = r.jobs;
+    if (r.movedEntries) { S.entries.forEach(e => { if (e.JobNo === oldNo) e.JobNo = r.job.JobNo; }); toast(`Saved — moved ${r.movedEntries} time entries to ${r.job.JobNo}`, 4000); }
+    else toast('Saved');
+    closeModal(); render();
+  } catch (e) { const el = $('#jErr'); if (el) el.textContent = e.message; else fail(e); }
+}
+function editJob(j){
+  const isNew = !j; const sep = S.settings.JobSeparator == null ? '-' : S.settings.JobSeparator;
+  j = j || { JobNo: '', Customer: '', PO: '', Quote: '', Description: '', Status: 'Active' };
+  modal(`<h3>${isNew ? 'Add job' : j.Status === 'Pending' ? 'Fix / merge job request' : 'Edit job'}</h3>
+    ${j.Status === 'Pending' ? '<p class="help">Correct the number, or type an <b>existing</b> job # to merge this request into it. All time posted to the request moves with it.</p>' : !isNew ? '<p class="help">Changing the job # moves all its time entries to the new number. Typing an existing job # merges them.</p>' : ''}
+    <div class="form">
+      <div><label>Customer abbrev.</label><input id="jC" value="${esc(j.Customer)}"></div>
+      <div><label>Status</label><select id="jS">${['Active','Closed'].concat(j.Status === 'Pending' ? ['Pending'] : []).map(s => `<option ${s === (j.Status || 'Active') ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+      <div><label>PO #</label><input id="jP" value="${esc(j.PO)}"></div>
+      <div><label>Quote #</label><input id="jQ" value="${esc(j.Quote)}"></div>
+      <div class="full"><label>Job # <button class="btn link sm" id="jBuild" type="button">build from fields</button></label><input id="jN" list="jobDL2" value="${esc(j.JobNo)}" style="font-family:var(--mono);font-weight:700"><datalist id="jobDL2">${S.jobs.filter(x => x.JobNo !== j.JobNo).map(x => `<option value="${esc(x.JobNo)}">${esc(x.Description)}</option>`).join('')}</datalist></div>
+      <div class="full"><label>Description</label><input id="jD" value="${esc(j.Description)}"></div>
+      <div class="full"><label>QuickBooks Customer:Job <span style="text-transform:none;letter-spacing:0;font-weight:500">— exactly as in QuickBooks, e.g. <i>Gulfport School District:GHS Press Box</i></span></label><input id="jQB" list="qbDL" value="${esc(j.QBJob || '')}"><datalist id="qbDL">${[...new Set(S.jobs.map(x => x.QBJob).filter(Boolean))].map(v => `<option value="${esc(v)}">`).join('')}</datalist></div>
+    </div><div class="err" id="jErr"></div>
+    <div class="acts">${!isNew && j.Status !== 'Pending' ? '' : ''}${!isNew ? '<button class="btn left" id="jDel" style="color:var(--bad)">Delete</button>' : ''}<button class="btn" data-close>Cancel</button><button class="btn pri" id="jGo">${j.Status === 'Pending' ? 'Save &amp; approve' : 'Save'}</button></div>`);
+  const build = () => { $('#jN').value = [$('#jC').value.trim().toUpperCase(), $('#jP').value.trim(), $('#jQ').value.trim()].filter(Boolean).join(sep); };
+  $('#jBuild').onclick = build;
+  if (isNew) ['#jC','#jP','#jQ'].forEach(s => $(s).addEventListener('input', build));
+  $('#jGo').onclick = () => {
+    const no = $('#jN').value.trim().toUpperCase();
+    const target = S.jobs.find(x => x.JobNo === no);
+    if (!isNew && no !== j.JobNo && target && !confirm(`${no} already exists. Merge ${j.JobNo} into it and move its time?`)) return;
+    const st = $('#jS').value === 'Pending' ? 'Active' : $('#jS').value;
+    const payload = target && no !== j.JobNo ? { JobNo: no, Status: target.Status === 'Pending' ? 'Active' : target.Status } : { JobNo: no, Customer: $('#jC').value.trim().toUpperCase(), PO: $('#jP').value.trim(), Quote: $('#jQ').value.trim(), Description: $('#jD').value.trim(), Status: st, RequestedBy: j.RequestedBy, CreatedAt: j.CreatedAt, QBJob: $('#jQB').value.trim() };
+    saveJob(payload, isNew ? undefined : j.JobNo);
+  };
+  if ($('#jDel')) $('#jDel').onclick = async () => {
+    if (!confirm('Delete job ' + j.JobNo + '?')) return;
+    try { const r = await call('adminDeleteJob', { jobNo: j.JobNo }); S.jobs = r.jobs; closeModal(); render(); } catch (e) { $('#jErr').textContent = e.message; }
+  };
+}
+
+/* EMPLOYEES */
+function renderEmps(){
+  const list = S.employees.slice().sort((a, b) => (String(b.Active).toUpperCase() !== 'FALSE') - (String(a.Active).toUpperCase() !== 'FALSE') || a.Name.localeCompare(b.Name));
+  $('#view').innerHTML = `
+    <div style="display:flex;align-items:center;margin-bottom:12px"><h2 style="margin:0;font-size:18px">Technicians</h2><span class="spacer"></span><button class="btn pri" id="addEmp">＋ Add employee</button></div>
+    <div class="panel"><table class="t"><thead><tr><th>ID</th><th>Name (shown on phone)</th><th>Payroll / QuickBooks name</th><th>PIN</th><th>Status</th><th>Notes</th><th></th></tr></thead><tbody>
+    ${list.map(e => `<tr><td class="num muted">${esc(e.EmpID)}</td><td><b>${esc(e.Name)}</b></td><td>${esc(e.PayrollName)}</td>
+      <td>${e.PINSet ? '<span class="muted">set</span>' : '<span class="flag bad">none</span>'} <button class="btn link sm" data-pin="${esc(e.EmpID)}">Reset PIN</button></td>
+      <td>${String(e.Active).toUpperCase() === 'FALSE' ? '<span class="pill Closed">Inactive</span>' : '<span class="pill Active">Active</span>'}</td><td class="muted">${esc(e.Notes)}</td><td><button class="btn sm" data-e="${esc(e.EmpID)}">Edit</button></td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="muted">PINs are stored scrambled, so nobody (including the office) can look one up. If a tech forgets theirs, reset it and give them the new one. Five wrong PINs locks that tech out for 15 minutes, and a reset unlocks them right away.<br>
+    Set the <b>Payroll / QuickBooks name</b> to match QuickBooks exactly. Inactive employees can't sign in, and their past time is kept.</p>
+
+    <div style="display:flex;align-items:center;margin:26px 0 12px"><h2 style="margin:0;font-size:18px">Office users</h2><span class="muted" style="margin-left:10px">people who can sign in to this dashboard</span><span class="spacer"></span><button class="btn pri" id="addUser">＋ Add office user</button></div>
+    <div class="panel"><table class="t"><thead><tr><th>Name</th><th>Status</th><th>Created</th><th>Last sign-in</th><th></th></tr></thead><tbody>
+    ${S.users.map(u => `<tr><td><b>${esc(u.Name)}</b>${u.Name === S.me ? ' <span class="muted">(you)</span>' : ''}</td><td>${String(u.Active).toUpperCase() === 'FALSE' ? '<span class="pill Closed">Inactive</span>' : '<span class="pill Active">Active</span>'}</td><td class="muted">${esc(u.CreatedAt)}</td><td class="muted">${esc(u.LastLogin)}</td>
+      <td style="white-space:nowrap"><button class="btn sm" data-ureset="${esc(u.Name)}">Reset password</button> <button class="btn sm" data-utoggle="${esc(u.Name)}">${String(u.Active).toUpperCase() === 'FALSE' ? 'Activate' : 'Deactivate'}</button></td></tr>`).join('') || '<tr><td colspan="5" class="muted">No office users yet. Create one for each person in accounting.</td></tr>'}
+    </tbody></table></div>
+    <p class="muted">Each person signs in with their own name and password, so approvals and edits show who made them. Passwords need at least 8 characters and are stored scrambled. Five wrong tries locks that name out for 15 minutes.</p>
+
+    <div style="display:flex;align-items:center;margin:26px 0 12px"><h2 style="margin:0;font-size:18px">Sign-in timeouts</h2></div>
+    <div class="panel"><div style="padding:14px;display:flex;gap:24px;align-items:flex-end;flex-wrap:wrap">
+      <div class="form" style="grid-template-columns:220px 220px;gap:12px 24px">
+        <div><label>Office dashboard idle timeout</label><div style="display:flex;align-items:center;gap:8px"><input type="number" id="secIdle" min="5" max="480" value="${esc(S.settings.OfficeIdleMinutes)}" style="width:90px"> minutes</div><div class="muted" style="font-size:12px;margin-top:4px">5 to 480. Signs out after this long with no activity.</div></div>
+        <div><label>Tech phone PIN re-entry</label><div style="display:flex;align-items:center;gap:8px"><input type="number" id="secDays" min="0" max="365" value="${esc(S.settings.TechSessionDays)}" style="width:90px"> days</div><div class="muted" style="font-size:12px;margin-top:4px">0 = stay signed in until signed out or the PIN is reset.</div></div>
+      </div>
+      <button class="btn pri" id="secSave">Save timeouts</button>
+      <span class="spacer"></span>
+      <button class="btn" id="secRevoke" style="color:var(--bad)">Sign everyone out</button>
+    </div><div class="muted" style="padding:0 14px 12px;font-size:12.5px">A new phone timeout applies the next time each tech signs in. Resetting a tech's PIN signs out that tech's phone right away. <b>Sign everyone out</b> ends every session on every phone and PC (except yours). Use it if a phone is lost or a password may have leaked.</div></div>`;
+  $('#addEmp').onclick = () => editEmp(null);
+  document.querySelectorAll('[data-e]').forEach(b => b.onclick = () => editEmp(S.employees.find(e => e.EmpID === b.dataset.e)));
+  document.querySelectorAll('[data-pin]').forEach(b => b.onclick = () => resetPin(S.employees.find(e => e.EmpID === b.dataset.pin)));
+  $('#addUser').onclick = () => editUser(null);
+  $('#secSave').onclick = async () => {
+    try { const r = await call('adminSaveSettings', { values: { OfficeIdleMinutes: $('#secIdle').value, TechSessionDays: $('#secDays').value } }); S.settings = r.settings; toast(`Saved: office ${r.settings.OfficeIdleMinutes} min idle · phones ${r.settings.TechSessionDays ? r.settings.TechSessionDays + ' days' : 'no expiry'}`); render(); }
+    catch (e) { fail(e); }
+  };
+  $('#secRevoke').onclick = async () => {
+    if (!confirm('Sign out every tech phone and every other office PC? Techs will need their PIN to get back in. Unsynced entries on phones are kept.')) return;
+    try { await call('adminRevokeAll'); toast('Everyone else has been signed out'); } catch (e) { fail(e); }
+  };
+  document.querySelectorAll('[data-ureset]').forEach(b => b.onclick = () => editUser(S.users.find(u => u.Name === b.dataset.ureset)));
+  document.querySelectorAll('[data-utoggle]').forEach(b => b.onclick = async () => {
+    const u = S.users.find(x => x.Name === b.dataset.utoggle); const act = String(u.Active).toUpperCase() === 'FALSE';
+    if (!act && !confirm(`Deactivate ${u.Name}? They won't be able to sign in.`)) return;
+    try { const r = await call('adminSaveUser', { officeUser: { Name: u.Name, Active: act ? 'TRUE' : 'FALSE' } }); S.users = r.users; render(); } catch (e) { fail(e); }
+  });
+}
+const randPin = () => String(Math.floor(1000 + Math.random() * 9000));
+function showPin(name, pin){
+  modal(`<h3>PIN for ${esc(name)}</h3><p class="help">Give this to ${esc(name)}. It won't be shown again.</p>
+    <div style="font-family:var(--mono);font-size:42px;font-weight:800;text-align:center;letter-spacing:.2em;background:var(--bg);border-radius:10px;padding:14px">${esc(pin)}</div>
+    <div class="acts"><button class="btn pri" data-close>Done</button></div>`);
+}
+function resetPin(e){
+  modal(`<h3>Reset PIN — ${esc(e.Name)}</h3><p class="help">This signs ${esc(e.Name)} out on their phone and clears any lockout.</p>
+    <div class="form"><div><label>New PIN (4–6 digits)</label><input id="rpPin" value="${randPin()}" inputmode="numeric" maxlength="6" style="font-family:var(--mono);font-size:18px"></div></div>
+    <div class="err" id="rpErr"></div><div class="acts"><button class="btn" data-close>Cancel</button><button class="btn pri" id="rpGo">Set PIN</button></div>`);
+  $('#rpGo').onclick = async () => {
+    const pin = $('#rpPin').value.trim();
+    try { const r = await call('adminSaveEmployee', { employee: { EmpID: e.EmpID, Name: e.Name, PayrollName: e.PayrollName, Active: e.Active, Notes: e.Notes, PIN: pin } }); S.employees = r.employees; render(); showPin(e.Name, pin); }
+    catch (err) { $('#rpErr').textContent = err.message; }
+  };
+}
+function editEmp(e){
+  const isNew = !e;
+  e = e || { EmpID: '', Name: '', Active: 'TRUE', PayrollName: '', Notes: '' };
+  modal(`<h3>${isNew ? 'Add employee' : 'Edit ' + esc(e.Name)}</h3>
+    <div class="form">
+      <div class="full"><label>Name (as shown on phone)</label><input id="mN" value="${esc(e.Name)}"></div>
+      <div class="full"><label>Payroll / QuickBooks name</label><input id="mP" value="${esc(e.PayrollName)}" placeholder="Same as name if blank"></div>
+      ${isNew ? `<div><label>PIN (4–6 digits)</label><input id="mPin" value="${randPin()}" inputmode="numeric" maxlength="6" style="font-family:var(--mono)"></div>` : ''}
+      <div><label>Status</label><select id="mA"><option value="TRUE" ${String(e.Active).toUpperCase() !== 'FALSE' ? 'selected' : ''}>Active</option><option value="FALSE" ${String(e.Active).toUpperCase() === 'FALSE' ? 'selected' : ''}>Inactive</option></select></div>
+      <div class="full"><label>Notes</label><input id="mNo" value="${esc(e.Notes)}"></div>
+    </div><div class="err" id="mErr"></div>
+    <div class="acts"><button class="btn" data-close>Cancel</button><button class="btn pri" id="mGo">Save</button></div>`);
+  $('#mGo').onclick = async () => {
+    const pin = isNew ? $('#mPin').value.trim() : '';
+    try {
+      const r = await call('adminSaveEmployee', { employee: { EmpID: e.EmpID, Name: $('#mN').value, PayrollName: $('#mP').value.trim() || $('#mN').value.trim(), PIN: pin, Active: $('#mA').value, Notes: $('#mNo').value } });
+      S.employees = r.employees; render();
+      if (isNew) showPin(r.employee.Name, pin); else { closeModal(); toast('Saved'); }
+    } catch (err) { $('#mErr').textContent = err.message; }
+  };
+}
+function editUser(u){
+  const isNew = !u;
+  modal(`<h3>${isNew ? 'Add office user' : 'Reset password — ' + esc(u.Name)}</h3>
+    <div class="form" style="grid-template-columns:1fr">
+      ${isNew ? '<div><label>Name (what they type to sign in)</label><input id="uN" placeholder="e.g. Kim Smith"></div>' : ''}
+      <div><label>${isNew ? 'Temporary password' : 'New password'} (8+ characters)</label><input id="uP" type="text" autocomplete="off"></div>
+    </div><p class="help" style="margin-top:10px">They can change it later with <b>Change password</b> at the top of the dashboard.</p>
+    <div class="err" id="uErr"></div><div class="acts"><button class="btn" data-close>Cancel</button><button class="btn pri" id="uGo">${isNew ? 'Add user' : 'Set password'}</button></div>`);
+  $('#uGo').onclick = async () => {
+    try {
+      const r = await call('adminSaveUser', { officeUser: isNew ? { Name: $('#uN').value, Password: $('#uP').value, isNew: true } : { Name: u.Name, Password: $('#uP').value, Active: u.Active } });
+      S.users = r.users; closeModal();
+      if (r.bootstrapOver) { signOutLocal('Office user created. The setup password no longer works. Sign in with your new name and password.'); return; }
+      toast(isNew ? 'Office user added' : 'Password updated'); render();
+    } catch (err) { $('#uErr').textContent = err.message; }
+  };
+}
+
+/* ---------- QUICKBOOKS DESKTOP ---------- */
+const r2 = x => Math.round(x * 100) / 100;
+function dur(h){ let m = Math.round(h * 60); return Math.floor(m / 60) + ':' + pad(m % 60); }
+const qbDate = s => { const d = parse(s); return (d.getMonth() + 1) + '/' + d.getDate() + '/' + String(d.getFullYear()).slice(2); };
+const clean = v => String(v == null ? '' : v).replace(/[\t\r\n"]+/g, ' ').trim();
+/** Regular/OT split per entry: hours past the weekly threshold go to the latest entries of that workweek. */
+function otAlloc(){
+  const groups = {}, m = {};
+  S.entries.filter(isPaid).forEach(e => { const k = e.EmpID + '|' + weekStartOf(e.Date); (groups[k] = groups[k] || []).push(e); });
+  Object.values(groups).forEach(list => {
+    list.sort((a, b) => a.Date.localeCompare(b.Date) || (a.Start || '99:99').localeCompare(b.Start || '99:99') || a.EntryID.localeCompare(b.EntryID));
+    let cum = 0; const th = S.settings.OTThreshold;
+    list.forEach(e => { const h = +e.Hours; const reg = Math.max(0, Math.min(h, th - cum)); cum += h; m[e.EntryID] = { reg: r2(reg), ot: r2(h - reg) }; });
+  });
+  return m;
+}
+function qbLines(opt){
+  const q = S.settings, alloc = otAlloc();
+  const out = { lines: [], skippedUnapproved: 0, skippedExported: 0, missingJobs: {}, editedAfter: 0 };
+  S.entries.filter(inRange).filter(e => e.Type !== 'Break')
+    .sort((a, b) => a.Employee.localeCompare(b.Employee) || a.Date.localeCompare(b.Date) || (a.Start || '99').localeCompare(b.Start || '99'))
+    .forEach(e => {
+      if (opt.approvedOnly && e.Status !== 'Approved') { out.skippedUnapproved++; return; }
+      if (/^EDITED/.test(e.QBExported || '')) out.editedAfter++;
+      if (opt.skipExported && e.QBExported) { out.skippedExported++; return; }
+      const emp = S.employees.find(x => x.EmpID === e.EmpID) || {};
+      const j = job(e.JobNo) || {};
+      let qbJob = '';
+      if (e.Type === 'Job' || (e.Type === 'Travel' && e.JobNo)) { qbJob = j.QBJob || ''; if (!qbJob) out.missingJobs[e.JobNo] = (out.missingJobs[e.JobNo] || 0) + +e.Hours; }
+      else if (e.Type === 'Shop') qbJob = q.QBShopJob || '';
+      const item = e.Type === 'Job' ? q.QBItemLabor : e.Type === 'Travel' ? q.QBItemTravel : e.Type === 'Shop' ? (q.QBItemShop || '') : '';
+      const bill = e.Type === 'Job' || (e.Type === 'Travel' && q.QBTravelBillable && !!e.JobNo);
+      const note = [e.Start ? to12(e.Start) + '-' + to12(e.End) : '', e.Notes].filter(Boolean).join(' ');
+      const base = { e, emp: emp.PayrollName || emp.Name || e.Employee, job: qbJob, item, bill, note, xfer: true };
+      if (e.Type === 'PTO') out.lines.push(Object.assign({}, base, { pitem: q.QBPayPTO, hours: +e.Hours }));
+      else if (e.Type === 'Holiday') out.lines.push(Object.assign({}, base, { pitem: q.QBPayHoliday, hours: +e.Hours }));
+      else if (!isPaid(e)) out.lines.push(Object.assign({}, base, { pitem: '', hours: +e.Hours, xfer: false }));
+      else {
+        const a = alloc[e.EntryID] || { reg: +e.Hours, ot: 0 };
+        if (a.reg > 0) out.lines.push(Object.assign({}, base, { pitem: q.QBPayRegular, hours: a.reg }));
+        if (a.ot > 0) out.lines.push(Object.assign({}, base, { pitem: q.QBPayOT, hours: a.ot, ot: true }));
+      }
+    });
+  return out;
+}
+function buildIIF(lines){
+  const q = S.settings, NL = '\r\n';
+  let t = ['!TIMERHDR','VER','REL','COMPANYNAME','IMPORTEDBEFORE','FROMTIMER','COMPANYCREATETIME'].join('\t') + NL;
+  t += ['TIMERHDR', clean(q.QBTimerVer || '7'), clean(q.QBTimerRel || '0'), clean(q.QBCompanyName), 'N', 'Y', clean(q.QBCompanyCreateTime)].join('\t') + NL;
+  t += ['!TIMEACT','DATE','JOB','EMP','ITEM','PITEM','DURATION','PROJ','NOTE','XFERTOPAYROLL','BILLINGSTATUS'].join('\t') + NL;
+  lines.forEach(l => { t += ['TIMEACT', qbDate(l.e.Date), clean(l.job), clean(l.emp), clean(l.item), clean(l.pitem), dur(l.hours), '', clean(l.note).slice(0, 4000), l.xfer ? 'Y' : 'N', l.bill ? '1' : '0'].join('\t') + NL; });
+  return t;
+}
+function renderQB(){
+  const q = S.settings;
+  const r = qbLines({ approvedOnly: S.qbApprovedOnly, skipExported: S.qbSkipExported });
+  const missing = Object.keys(r.missingJobs);
+  const noCo = !q.QBCompanyCreateTime || !q.QBCompanyName;
+  const tot = k => r.lines.filter(k).reduce((s, l) => s + l.hours, 0);
+  const ids = [...new Set(r.lines.map(l => l.e.EntryID))];
+  const [from, to] = range();
+  $('#view').innerHTML = `
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start">
+  <div>
+    <div class="panel"><h3>Export time to QuickBooks Desktop <span class="muted" style="font-weight:500">— ${fmtS(from)} – ${fmtS(to)}</span></h3>
+      <div style="padding:14px">
+        <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:12px">
+          <label><input type="checkbox" class="chk" id="qbAp" ${S.qbApprovedOnly ? 'checked' : ''}> Approved entries only</label>
+          <label><input type="checkbox" class="chk" id="qbSk" ${S.qbSkipExported ? 'checked' : ''}> Skip entries already sent to QuickBooks</label>
+        </div>
+        <div class="cards" style="margin-bottom:12px">
+          <div class="card"><div class="k">Lines</div><div class="v">${r.lines.length}</div></div>
+          <div class="card"><div class="k">Regular</div><div class="v">${h2(tot(l => l.pitem === q.QBPayRegular))}</div></div>
+          <div class="card"><div class="k">Overtime</div><div class="v ${tot(l => l.ot) ? 'ot' : ''}">${h2(tot(l => l.ot))}</div></div>
+          <div class="card"><div class="k">PTO + Holiday</div><div class="v">${h2(tot(l => l.e.Type === 'PTO' || l.e.Type === 'Holiday'))}</div></div>
+        </div>
+        ${r.skippedUnapproved ? `<div class="flag" style="display:block;padding:8px 10px;margin-bottom:6px">${r.skippedUnapproved} entries in this period aren't approved yet and are left out.</div>` : ''}
+        ${r.skippedExported ? `<div class="muted" style="margin-bottom:6px">${r.skippedExported} entries were already sent to QuickBooks and are skipped.</div>` : ''}
+        ${r.editedAfter ? `<div class="flag bad" style="display:block;padding:8px 10px;margin-bottom:6px">${r.editedAfter} entries were changed after they were sent to QuickBooks. Fix those in QuickBooks by hand (look for "edited after QB" on the Timesheets tab).</div>` : ''}
+        ${noCo ? `<div class="flag bad" style="display:block;padding:8px 10px;margin-bottom:6px">Fill in the QuickBooks company name and create time on the right before exporting.</div>` : ''}
+        ${missing.length ? `<div class="panel" style="margin:10px 0;border-color:#f1d29b"><h3 style="background:var(--warnbg)">Jobs need their QuickBooks Customer:Job name (${missing.length})</h3>
+          <table class="t">${missing.map(no => { const j = job(no) || {}; return `<tr><td class="num" style="width:190px"><b>${esc(no)}</b><div class="muted" style="font-family:var(--sans)">${esc(j.Description || '')} · ${h2(r.missingJobs[no])} hrs</div></td>
+            <td><input class="search qbj" data-no="${esc(no)}" list="qbDL0" placeholder="Customer:Job as in QuickBooks" style="width:100%"></td></tr>`; }).join('')}</table>
+          <datalist id="qbDL0">${[...new Set(S.jobs.map(x => x.QBJob).filter(Boolean))].map(v => `<option value="${esc(v)}">`).join('')}</datalist>
+          <div style="padding:10px 14px;text-align:right"><button class="btn pri sm" id="qbSaveJobs">Save names</button></div></div>` : ''}
+        <div style="display:flex;gap:10px;align-items:center;margin-top:12px">
+          <button class="btn acc" id="qbGo" ${!r.lines.length || noCo || missing.length ? 'disabled' : ''}>⬇ Download .IIF for QuickBooks</button>
+          ${S.lastExport ? `<span class="muted">Last export marked ${S.lastExport.ids.length} entries as sent. <button class="btn link sm" id="qbUndo">Undo mark</button></span>` : ''}
+        </div>
+      </div>
+    </div>
+    <div class="panel"><h3>Preview <span class="muted" style="font-weight:500">— exactly what goes into QuickBooks${r.lines.length > 300 ? ' (first 300 lines)' : ''}</span></h3>
+      <div style="max-height:520px;overflow:auto"><table class="t"><thead><tr><th>Date</th><th>Employee</th><th>Customer:Job</th><th>Service item</th><th>Payroll item</th><th class="n">Duration</th><th>Bill</th><th>Notes</th></tr></thead><tbody>
+      ${r.lines.slice(0, 300).map(l => `<tr><td>${qbDate(l.e.Date)}</td><td>${esc(l.emp)}</td><td>${l.job ? esc(l.job) : (l.e.Type === 'Job' || (l.e.Type === 'Travel' && l.e.JobNo) ? '<span class="flag bad">missing</span>' : '<span class="muted">—</span>')}</td><td>${esc(l.item)}</td><td class="${l.ot ? 'ot' : ''}">${esc(l.pitem) || '<span class="muted">not paid</span>'}</td><td class="n">${dur(l.hours)}</td><td>${l.bill ? '✓' : ''}</td><td class="muted">${esc(l.note)}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nothing to export for this period.</td></tr>'}
+      </tbody></table></div></div>
+  </div>
+  <div>
+    <div class="panel"><h3>QuickBooks settings</h3><div style="padding:14px">
+      <p class="help">Names must match your QuickBooks lists <b>exactly</b>, or QuickBooks will create new ones.</p>
+      <div class="form" style="grid-template-columns:1fr">
+        ${[['QBCompanyName','Company name (from TIMERHDR line)'],['QBCompanyCreateTime','COMPANYCREATETIME'],['QBTimerVer','Timer VER'],['QBTimerRel','Timer REL'],
+           ['QBItemLabor','Service item — job labor'],['QBItemTravel','Service item — travel'],['QBItemShop','Service item — shop (optional)'],['QBShopJob','Customer:Job for shop time (optional)'],
+           ['QBPayRegular','Payroll item — regular'],['QBPayOT','Payroll item — overtime'],['QBPayPTO','Payroll item — PTO'],['QBPayHoliday','Payroll item — holiday']]
+          .map(([k, l]) => `<div><label>${l}</label><input data-qs="${k}" value="${esc(q[k] == null ? '' : q[k])}"></div>`).join('')}
+        <div><label><input type="checkbox" id="qsTB" ${q.QBTravelBillable ? 'checked' : ''}> Travel is billable to the customer</label></div>
+      </div>
+      <div style="text-align:right;margin-top:12px"><button class="btn pri" id="qsSave">Save settings</button></div>
+    </div></div>
+    <div class="panel"><h3>How to import</h3><div style="padding:4px 14px 12px;line-height:1.5">
+      <p><b>One time:</b> in QuickBooks, <i>File → Utilities → Export → Timer Lists</i>. Open that .IIF in Notepad and copy the company name, <b>COMPANYCREATETIME</b>, VER and REL from the TIMERHDR line into the settings above.</p>
+      <p><b>Each payroll:</b> approve the period, click <b>Download .IIF</b>, back up QuickBooks, then <i>File → Utilities → Import → Timer Activities</i> and pick the file.</p>
+      <p class="muted">Each employee needs "Use time data to create paychecks" turned on in QuickBooks. Don't import the same file twice. QuickBooks can't detect duplicates, so this page marks entries as sent and skips them next time.</p>
+    </div></div>
+  </div></div>`;
+  $('#qbAp').onchange = e => { S.qbApprovedOnly = e.target.checked; renderQB(); };
+  $('#qbSk').onchange = e => { S.qbSkipExported = e.target.checked; renderQB(); };
+  $('#qsSave').onclick = async () => {
+    const values = {}; document.querySelectorAll('[data-qs]').forEach(i => values[i.dataset.qs] = i.value.trim());
+    values.QBTravelBillable = $('#qsTB').checked ? 'TRUE' : 'FALSE';
+    try { const res = await call('adminSaveSettings', { values }); S.settings = res.settings; toast('QuickBooks settings saved'); renderQB(); } catch (e) { fail(e); }
+  };
+  if ($('#qbSaveJobs')) $('#qbSaveJobs').onclick = async () => {
+    const inputs = [...document.querySelectorAll('.qbj')].filter(i => i.value.trim());
+    if (!inputs.length) return;
+    try {
+      for (const i of inputs) { const res = await call('adminSaveJob', { job: { JobNo: i.dataset.no, QBJob: i.value.trim() } }); S.jobs = res.jobs; }
+      toast('Saved'); renderQB();
+    } catch (e) { fail(e); }
+  };
+  $('#qbGo').onclick = async () => {
+    const text = buildIIF(r.lines);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+    a.download = `ATI_Timecard_${from}_to_${to}_QuickBooks.iif`; a.click();
+    try {
+      const res = await call('adminMarkExported', { ids });
+      S.entries.forEach(e => { if (ids.includes(e.EntryID)) e.QBExported = res.stamp; });
+      S.lastExport = { ids };
+      toast(`Downloaded ${r.lines.length} lines. ${ids.length} entries marked as sent to QuickBooks.`, 5000);
+    } catch (e) { fail(e); }
+    renderQB();
+  };
+  if ($('#qbUndo')) $('#qbUndo').onclick = async () => {
+    try {
+      const ids2 = S.lastExport.ids; await call('adminMarkExported', { ids: ids2, clear: true });
+      S.entries.forEach(e => { if (ids2.includes(e.EntryID)) e.QBExported = ''; });
+      S.lastExport = null; toast('Unmarked. Those entries will export again.'); renderQB();
+    } catch (e) { fail(e); }
+  };
+}
+
+/* ---------- modal ---------- */
+function modal(html){
+  $('#modalHost').innerHTML = `<div class="scrim"><div class="modal">${html}</div></div>`;
+  const sc = $('#modalHost .scrim');
+  sc.onclick = ev => { if (ev.target === sc || ev.target.hasAttribute('data-close')) closeModal(); };
+  const first = sc.querySelector('input,select,textarea'); if (first) first.focus();
+}
+function closeModal(){ $('#modalHost').innerHTML = ''; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+/* ---------- export ---------- */
+function exportRows(){
+  const [from, to] = range();
+  const emps = activeEmps();
+  const pname = id => { const e = S.employees.find(x => x.EmpID === id); return e ? (e.PayrollName || e.Name) : id; };
+  const payroll = [];
+  emps.forEach(e => { const s = summarize(e.EmpID); s.weeks.forEach(w => payroll.push({
+    'Employee': e.Name, 'Payroll Name': e.PayrollName || e.Name, 'Week Of': fmtUS(w.ws) + (w.partial ? ' (partial)' : ''),
+    'Regular Hrs': +h2(w.reg), 'OT Hrs': +h2(w.ot), 'PTO Hrs': +h2(w.pto), 'Holiday Hrs': +h2(w.hol), 'Total Paid Hrs': +h2(w.reg + w.ot + w.pto + w.hol),
+    'Job Hrs': +h2(w.job), 'Shop Hrs': +h2(w.shop), 'Travel Hrs': +h2(w.travel), 'Break Hrs (unpaid)': +h2(w.brk) })); });
+  const totals = emps.map(e => { const s = summarize(e.EmpID); return { 'Employee': e.Name, 'Payroll Name': e.PayrollName || e.Name, 'Regular Hrs': +h2(s.reg), 'OT Hrs': +h2(s.ot), 'PTO Hrs': +h2(s.pto), 'Holiday Hrs': +h2(s.hol), 'Total Paid Hrs': +h2(s.reg + s.ot + s.pto + s.hol), 'Status': s.st.Open ? 'Has open entries' : s.st.Submitted ? 'Awaiting approval' : (s.st.Approved ? 'Approved' : 'No time') }; });
+  const list = S.entries.filter(inRange).sort((a, b) => a.Employee.localeCompare(b.Employee) || a.Date.localeCompare(b.Date) || (a.Start || '').localeCompare(b.Start || ''));
+  const detail = list.map(e => { const j = job(e.JobNo) || {}; return { 'Date': fmtUS(e.Date), 'Day': DOW[parse(e.Date).getDay()], 'Employee': e.Employee, 'Payroll Name': pname(e.EmpID), 'Type': e.Type, 'Job #': e.JobNo, 'Customer': j.Customer || '', 'Job Description': j.Description || '', 'Start': e.Start, 'End': e.End, 'Hours': +h2(e.Hours), 'Paid': isPaid(e) || e.Type === 'PTO' || e.Type === 'Holiday' ? 'Y' : 'N', 'Status': e.Status, 'Notes': e.Notes, 'Office Note': e.OfficeNote }; });
+  const jobs = [];
+  jobHoursData().forEach(r => { const j = job(r.JobNo) || {}; Object.entries(r.techs).forEach(([id, t]) => jobs.push({ 'Job #': r.JobNo, 'Customer': j.Customer || '', 'PO': j.PO || '', 'Quote': j.Quote || '', 'Description': j.Description || '', 'Employee': empName(id), 'Labor Hrs': +h2(t.labor), 'Travel Hrs': +h2(t.travel), 'Total Hrs': +h2(t.labor + t.travel) })); });
+  const qb = qbLines({ approvedOnly: false, skipExported: false }).lines.map(l => ({ 'Date': fmtUS(l.e.Date), 'Employee': l.emp, 'Customer:Job': l.job, 'Service Item': l.item, 'Payroll Item': l.pitem, 'Hours': +h2(l.hours), 'Duration': dur(l.hours), 'Billable': l.bill ? 'Y' : 'N', 'Job #': l.e.JobNo, 'Status': l.e.Status, 'In QB': l.e.QBExported ? 'Y' : '', 'Notes': l.note }));
+  return { from, to, payroll, totals, detail, jobs, qb };
+}
+function doExport(){
+  const d = exportRows();
+  const name = `Timecard_${d.from}_to_${d.to}`;
+  if (!window.XLSX) {
+    // fallback: CSV of the detail
+    const rows = d.detail; const keys = Object.keys(rows[0] || { Date: '' });
+    const csv = [keys.join(',')].concat(rows.map(r => keys.map(k => '"' + String(r[k]).replace(/"/g, '""') + '"').join(','))).join('\r\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = name + '_detail.csv'; a.click();
+    toast('Excel library not loaded — downloaded CSV instead', 4000); return;
+  }
+  const wb = XLSX.utils.book_new();
+  const add = (rows, title, widths) => {
+    const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ '(no data)': '' }]);
+    if (widths) ws['!cols'] = widths.map(w => ({ wch: w }));
+    if (rows.length) ws['!autofilter'] = { ref: ws['!ref'] };
+    XLSX.utils.book_append_sheet(wb, ws, title);
+  };
+  add(d.totals, 'Payroll Totals', [22, 22, 12, 10, 10, 12, 14, 18]);
+  add(d.payroll, 'Payroll by Week', [22, 22, 18, 12, 10, 10, 12, 14, 10, 10, 11, 16]);
+  add(d.detail, 'Time Detail', [11, 6, 20, 20, 9, 20, 10, 30, 7, 7, 7, 5, 11, 40, 30]);
+  add(d.jobs, 'Job Hours', [20, 10, 10, 10, 30, 20, 10, 10, 10]);
+  add(d.qb, 'QuickBooks Lines', [11, 22, 34, 12, 16, 8, 9, 8, 20, 11, 6, 40]);
+  wb.Props = { Title: `${S.settings.CompanyName || ''} Timecard ${d.from} to ${d.to}` };
+  XLSX.writeFile(wb, name + '.xlsx');
+  const open = S.entries.filter(x => inRange(x) && x.Status !== 'Approved').length;
+  toast(open ? `Exported. Note: ${open} entries are not approved yet.` : 'Exported', 4000);
+}
+
+/* ---------- print ---------- */
+function doPrint(){
+  const [from, to] = range();
+  const head = t => `<div class="pr-head"><h1>${esc(S.settings.CompanyName || '')} — ${t}</h1><div>${fmtL(from)} – ${fmtL(to)}<br>Printed ${new Date().toLocaleString()}</div></div>`;
+  let html = '';
+  if (S.view === 'sheets' || S.view === 'payroll') {
+    const emps = S.view === 'sheets' ? activeEmps().filter(e => e.EmpID === S.emp) : [];
+    if (S.view === 'payroll') {
+      html += `<div class="pr-page">${head('Payroll Summary')}${$('#view .panel').outerHTML.replace(/<button[\s\S]*?<\/button>/g, '')}</div>`;
+      if (!confirm('Also print an individual signed timesheet page for each employee?')) { finishPrint(html); return; }
+      emps.push(...activeEmps());
+    }
+    emps.forEach(e => {
+      const s = summarize(e.EmpID);
+      if (!s.list.length && S.view === 'payroll') return;
+      let rows = '';
+      s.weeks.forEach(w => {
+        rows += `<tr class="wksep"><td colspan="7">Week of ${fmtS(w.ws)} — Regular ${h2(w.reg)} · OT ${h2(w.ot)} · PTO/Hol ${h2(w.pto + w.hol)}</td></tr>`;
+        s.list.filter(x => x.Date >= w.ws && x.Date <= w.we).sort((a, b) => a.Date.localeCompare(b.Date) || (a.Start || '').localeCompare(b.Start || '')).forEach(x => {
+          const j = job(x.JobNo) || {};
+          rows += `<tr><td>${fmtL(x.Date)}</td><td>${x.Type}</td><td class="num">${esc(x.JobNo)}</td><td>${esc(j.Description || '')}</td><td>${x.Start ? to12(x.Start) + '–' + to12(x.End) : ''}</td><td class="n">${h2(x.Hours)}</td><td>${esc(x.Notes)}</td></tr>`;
+        });
+      });
+      html += `<div class="pr-page">${head('Timesheet: ' + esc(e.Name))}
+        <table class="t"><thead><tr><th>Date</th><th>Type</th><th>Job #</th><th>Job</th><th>Time</th><th class="n">Hrs</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table>
+        <table class="t" style="width:auto;margin-top:12px"><tr><td>Regular</td><td class="n">${h2(s.reg)}</td><td>Overtime</td><td class="n">${h2(s.ot)}</td><td>PTO</td><td class="n">${h2(s.pto)}</td><td>Holiday</td><td class="n">${h2(s.hol)}</td><td><b>Total paid</b></td><td class="n"><b>${h2(s.reg + s.ot + s.pto + s.hol)}</b></td></tr></table>
+        <div class="sig"><div>Employee signature / date</div><div>Supervisor approval / date</div></div></div>`;
+    });
+  } else {
+    const titles = { jobhours: 'Hours by Job', jobs: 'Job List', emps: 'Employees', qb: 'QuickBooks Export Preview' };
+    html = `<div class="pr-page">${head(titles[S.view])}${[...document.querySelectorAll('#view .panel')].map(p => p.outerHTML).join('').replace(/<button[\s\S]*?<\/button>/g, '')}</div>`;
+  }
+  finishPrint(html);
+}
+function finishPrint(html){
+  $('#printArea').innerHTML = html;
+  document.body.classList.add('printing');
+  setTimeout(() => { window.print(); document.body.classList.remove('printing'); }, 50);
+}
+
+/* ---------- wiring ---------- */
+$('#tabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.view = b.dataset.v; S.jobQ = ''; render(); };
+$('#rangeMode').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.m === 'custom') { const [f, t] = range(); S.cFrom = f; S.cTo = t; $('#cFrom').value = f; $('#cTo').value = t; }
+  S.mode = b.dataset.m; load();
+};
+$('#cFrom').onchange = $('#cTo').onchange = () => { S.cFrom = $('#cFrom').value; S.cTo = $('#cTo').value; if (S.cFrom && S.cTo && S.cFrom <= S.cTo) load(); };
+$('#pPrev').onclick = () => { S.anchor = addDays(range()[0], -1); load(); };
+$('#pNext').onclick = () => { S.anchor = addDays(range()[1], 1); load(); };
+$('#pToday').onclick = () => { S.anchor = todayISO(); load(); };
+$('#refreshBtn').onclick = load;
+$('#xlsBtn').onclick = doExport;
+$('#printBtn').onclick = doPrint;
+
+(async function boot(){
+  if (S.api && S.token) { try { const r = await call('adminPing'); start(); return; } catch (e) { ss.clear(); S.token = null; showLogin(e.auth ? e.message : ''); return; } }
+  showLogin();
+})();
+</script>
+</body>
+</html>
