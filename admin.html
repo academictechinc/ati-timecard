@@ -4,7 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ATI Timecard — Office</title>
-<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="admin-manifest.json">
+<script src="config.js"></script>
+<link rel="icon" href="admin-icon-192.png">
+<link rel="apple-touch-icon" href="admin-icon-192.png">
+<meta name="theme-color" content="#1b1f2a">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <style>
 :root{
@@ -175,7 +179,7 @@ table.t{width:100%;border-collapse:collapse}
 <div id="printArea"></div>
 
 <script>
-const BAKED_API_URL = '';   // paste the same Apps Script URL here so the office never has to type it
+const BAKED_API_URL = window.TIMECARD_API_URL || '';   // set in config.js
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -624,7 +628,7 @@ function editJob(j){
       <div class="full"><label>QuickBooks Customer:Job <span style="text-transform:none;letter-spacing:0;font-weight:500">— exactly as in QuickBooks, e.g. <i>Gulfport School District:GHS Press Box</i></span></label><input id="jQB" list="qbDL" value="${esc(j.QBJob || '')}"><datalist id="qbDL">${[...new Set(S.jobs.map(x => x.QBJob).filter(Boolean))].map(v => `<option value="${esc(v)}">`).join('')}</datalist></div>
     </div><div class="err" id="jErr"></div>
     <div class="acts">${!isNew && j.Status !== 'Pending' ? '' : ''}${!isNew ? '<button class="btn left" id="jDel" style="color:var(--bad)">Delete</button>' : ''}<button class="btn" data-close>Cancel</button><button class="btn pri" id="jGo">${j.Status === 'Pending' ? 'Save &amp; approve' : 'Save'}</button></div>`);
-  const build = () => { $('#jN').value = [$('#jC').value.trim().toUpperCase(), $('#jP').value.trim(), $('#jQ').value.trim()].filter(Boolean).join(sep); };
+  const build = () => { const c = $('#jC').value.trim().toUpperCase(), p = $('#jP').value.trim(), q = $('#jQ').value.trim(); const head = c + p; $('#jN').value = head && q ? head + sep + q : head || q; };
   $('#jBuild').onclick = build;
   if (isNew) ['#jC','#jP','#jQ'].forEach(s => $(s).addEventListener('input', build));
   $('#jGo').onclick = () => {
@@ -792,9 +796,9 @@ function qbLines(opt){
 }
 function buildIIF(lines){
   const q = S.settings, NL = '\r\n';
-  let t = ['!TIMERHDR','VER','REL','COMPANYNAME','IMPORTEDBEFORE','FROMTIMER','COMPANYCREATETIME'].join('\t') + NL;
-  t += ['TIMERHDR', clean(q.QBTimerVer || '7'), clean(q.QBTimerRel || '0'), clean(q.QBCompanyName), 'N', 'Y', clean(q.QBCompanyCreateTime)].join('\t') + NL;
-  t += ['!TIMEACT','DATE','JOB','EMP','ITEM','PITEM','DURATION','PROJ','NOTE','XFERTOPAYROLL','BILLINGSTATUS'].join('\t') + NL;
+  // QuickBooks Desktop 2022+/Enterprise 22+ removed "Import Timer Activities"; Intuit's supported route is
+  // File > Utilities > Import > IIF Files with no TIMERHDR/HDR rows above the !TIMEACT header.
+  let t = ['!TIMEACT','DATE','JOB','EMP','ITEM','PITEM','DURATION','PROJ','NOTE','XFERTOPAYROLL','BILLINGSTATUS'].join('\t') + NL;
   lines.forEach(l => { t += ['TIMEACT', qbDate(l.e.Date), clean(l.job), clean(l.emp), clean(l.item), clean(l.pitem), dur(l.hours), '', clean(l.note).slice(0, 4000), l.xfer ? 'Y' : 'N', l.bill ? '1' : '0'].join('\t') + NL; });
   return t;
 }
@@ -802,7 +806,7 @@ function renderQB(){
   const q = S.settings;
   const r = qbLines({ approvedOnly: S.qbApprovedOnly, skipExported: S.qbSkipExported });
   const missing = Object.keys(r.missingJobs);
-  const noCo = !q.QBCompanyCreateTime || !q.QBCompanyName;
+  const noCo = false;
   const tot = k => r.lines.filter(k).reduce((s, l) => s + l.hours, 0);
   const ids = [...new Set(r.lines.map(l => l.e.EntryID))];
   const [from, to] = range();
@@ -845,8 +849,7 @@ function renderQB(){
     <div class="panel"><h3>QuickBooks settings</h3><div style="padding:14px">
       <p class="help">Names must match your QuickBooks lists <b>exactly</b>, or QuickBooks will create new ones.</p>
       <div class="form" style="grid-template-columns:1fr">
-        ${[['QBCompanyName','Company name (from TIMERHDR line)'],['QBCompanyCreateTime','COMPANYCREATETIME'],['QBTimerVer','Timer VER'],['QBTimerRel','Timer REL'],
-           ['QBItemLabor','Service item — job labor'],['QBItemTravel','Service item — travel'],['QBItemShop','Service item — shop (optional)'],['QBShopJob','Customer:Job for shop time (optional)'],
+        ${[['QBItemLabor','Service item — job labor'],['QBItemTravel','Service item — travel'],['QBItemShop','Service item — shop (optional)'],['QBShopJob','Customer:Job for shop time (optional)'],
            ['QBPayRegular','Payroll item — regular'],['QBPayOT','Payroll item — overtime'],['QBPayPTO','Payroll item — PTO'],['QBPayHoliday','Payroll item — holiday']]
           .map(([k, l]) => `<div><label>${l}</label><input data-qs="${k}" value="${esc(q[k] == null ? '' : q[k])}"></div>`).join('')}
         <div><label><input type="checkbox" id="qsTB" ${q.QBTravelBillable ? 'checked' : ''}> Travel is billable to the customer</label></div>
@@ -854,8 +857,13 @@ function renderQB(){
       <div style="text-align:right;margin-top:12px"><button class="btn pri" id="qsSave">Save settings</button></div>
     </div></div>
     <div class="panel"><h3>How to import</h3><div style="padding:4px 14px 12px;line-height:1.5">
-      <p><b>One time:</b> in QuickBooks, <i>File → Utilities → Export → Timer Lists</i>. Open that .IIF in Notepad and copy the company name, <b>COMPANYCREATETIME</b>, VER and REL from the TIMERHDR line into the settings above.</p>
-      <p><b>Each payroll:</b> approve the period, click <b>Download .IIF</b>, back up QuickBooks, then <i>File → Utilities → Import → Timer Activities</i> and pick the file.</p>
+      <p><b>Each payroll</b> (QuickBooks Enterprise 24):</p>
+      <ol style="margin:0 0 10px;padding-left:18px">
+        <li>Approve the period, then click <b>Download .IIF</b>.</li>
+        <li>In QuickBooks, sign in as <b>Admin</b> in <b>single-user mode</b> and make a <b>backup</b>.</li>
+        <li><i>File → Utilities → Import → IIF Files</i> → <b>Import IIF</b>, then pick the file.</li>
+        <li>Check the hours in <i>Employees → Enter Time → Use Weekly Timesheet</i>, then create paychecks as usual.</li>
+      </ol>
       <p class="muted">Each employee needs "Use time data to create paychecks" turned on in QuickBooks. Don't import the same file twice. QuickBooks can't detect duplicates, so this page marks entries as sent and skips them next time.</p>
     </div></div>
   </div></div>`;
@@ -1007,6 +1015,7 @@ $('#refreshBtn').onclick = load;
 $('#xlsBtn').onclick = doExport;
 $('#printBtn').onclick = doPrint;
 
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 (async function boot(){
   if (S.api && S.token) { try { const r = await call('adminPing'); start(); return; } catch (e) { ss.clear(); S.token = null; showLogin(e.auth ? e.message : ''); return; } }
   showLogin();

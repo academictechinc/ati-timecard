@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Timecard">
 <link rel="manifest" href="manifest.json">
+<script src="config.js"></script>
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
 <title>ATI Timecard</title>
@@ -236,7 +237,7 @@ textarea{min-height:64px;resize:vertical}
    CONFIG — paste your Apps Script web-app URL between the quotes
    so techs never see the setup screen. Leave '' to ask on first run.
    ========================================================= */
-const BAKED_API_URL = '';
+const BAKED_API_URL = window.TIMECARD_API_URL || '';   // set in config.js
 const APP_VERSION = '1.0.0';
 
 const TYPES = ['Job','Travel','Shop','Break','PTO','Holiday'];
@@ -263,6 +264,8 @@ function weekStartOf(s){ const ws = (S.settings && S.settings.WeekStart) || 0; c
 const fmtH = h => (Math.round(h*100)/100).toFixed(2);
 function to12(t){ if(!t) return ''; let [h,m] = t.split(':').map(Number); const ap = h>=12?'p':'a'; h = h%12||12; return h+':'+pad(m)+ap; }
 function diffHours(a, b){ if(!a||!b) return 0; const [h1,m1]=a.split(':').map(Number), [h2,m2]=b.split(':').map(Number); let d=(h2*60+m2)-(h1*60+m1); if(d<0) d+=1440; return Math.round(d/60*100)/100; }
+// Job # = customer abbrev + PO run together, then separator + quote #  (e.g. GHS45021-Q1187)
+function jobNoFrom(c, p, q, sep){ const head = String(c || '').trim().toUpperCase() + String(p || '').trim(); q = String(q || '').trim(); return head && q ? head + sep + q : head || q; }
 const newId = () => 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 
 /* ---------- state ---------- */
@@ -657,7 +660,7 @@ function openRequest(onPick, onBack){
   openSheet(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><button class="btn ghost" id="rqBack" style="padding:8px 12px">‹ Back</button><h3 style="margin:0">New job number</h3></div>
     <p style="margin:0 0 12px;color:var(--ink2);font-size:14px">The office will confirm it. You can post time to it right away.</p>
     <div class="grid3">
-      <div class="field"><label>Customer</label><input class="txt" id="rqC" placeholder="GHS" autocapitalize="characters"></div>
+      <div class="field"><label>Customer</label><input class="txt" id="rqC" placeholder="GHS" autocapitalize="characters" style="text-transform:uppercase"></div>
       <div class="field"><label>PO #</label><input class="txt" id="rqP" inputmode="text"></div>
       <div class="field"><label>Quote #</label><input class="txt" id="rqQ"></div>
     </div>
@@ -665,7 +668,7 @@ function openRequest(onPick, onBack){
     <div class="field"><label>Job name / description</label><input class="txt" id="rqD" placeholder="e.g. Gym scoreboard install"></div>
     <div class="err" id="rqErr"></div>
     <button class="btn accent wide" id="rqGo">Request &amp; use this job</button>`);
-  const prev = () => { const v = [$('#rqC').value.trim().toUpperCase(), $('#rqP').value.trim(), $('#rqQ').value.trim()].filter(Boolean).join(sep); $('#rqPrev').textContent = v || '—'; };
+  const prev = () => { const v = jobNoFrom($('#rqC').value, $('#rqP').value, $('#rqQ').value, sep); $('#rqPrev').textContent = v || '—'; };
   ['#rqC','#rqP','#rqQ'].forEach(s => $(s).oninput = prev);
   $('#rqBack').onclick = onBack;
   $('#rqGo').onclick = async () => {
@@ -673,7 +676,7 @@ function openRequest(onPick, onBack){
     if (!$('#rqC').value.trim() || (!$('#rqP').value.trim() && !$('#rqQ').value.trim())) { $('#rqErr').textContent = 'Enter the customer and a PO or quote number'; return; }
     $('#rqGo').innerHTML = '<span class="spin"></span>';
     try {
-      const r = await call('requestJob', { customer: $('#rqC').value, po: $('#rqP').value, quote: $('#rqQ').value, description: $('#rqD').value });
+      const r = await call('requestJob', { jobNo: jobNoFrom($('#rqC').value, $('#rqP').value, $('#rqQ').value, sep), customer: $('#rqC').value, po: $('#rqP').value, quote: $('#rqQ').value, description: $('#rqD').value });
       S.jobs = r.jobs; LS.set('jobs', r.jobs);
       toast(r.job.Status === 'Pending' ? 'Job requested — office will confirm' : 'That job already exists — selected it');
       onPick(r.job.JobNo);

@@ -58,7 +58,7 @@ const DEFAULT_SETTINGS = [
   ['TravelPaid', 'TRUE', 'TRUE = travel counts as paid hours (and toward OT)'],
   ['PayPeriod', 'biweekly', 'weekly or biweekly'],
   ['PayPeriodAnchor', '2026-01-04', 'The first day of ANY past pay period (YYYY-MM-DD) — must fall on WeekStart'],
-  ['JobSeparator', '-', 'Character between Customer abbrev, PO and Quote # in job numbers'],
+  ['JobSeparator', '-', 'Character between the PO and Quote # in job numbers (customer + PO are run together, e.g. GHS45021-Q1187)'],
   ['OfficeIdleMinutes', '30', 'Office dashboard signs out after this many idle minutes (5–480)'],
   ['TechSessionDays', '30', 'Techs re-enter their PIN after this many days (0 = never)'],
   ['QBCompanyName', '', 'QuickBooks Desktop: company name exactly as in the TIMERHDR line of an exported Timer List'],
@@ -500,7 +500,7 @@ function makeJob(p, status, who) {
   const po = String(p.po || '').trim();
   const quote = String(p.quote || '').trim();
   let no = String(p.jobNo || '').trim().toUpperCase();
-  if (!no) no = [cust, po, quote].filter(Boolean).join(s.JobSeparator);
+  if (!no) no = (cust + po) && quote ? cust + po + s.JobSeparator + quote : (cust + po) || quote;
   if (!no) throw new Error('Enter at least a customer abbreviation and PO or quote number');
   const existing = Store.all('Jobs').filter(j => j.JobNo === no)[0];
   if (existing) return existing;
@@ -605,19 +605,19 @@ function techSync(e, ops) {
     [['E001','Marcus Hill','1111'],['E002','Tyler Brooks','2222'],['E003','Dana Pruitt','3333'],['E004','Jake Lowery','4444'],['E005','Chris Nguyen','5555']]
       .forEach(e => db.Employees.push({ EmpID: e[0], Name: e[1], PIN: e[2], Active: 'TRUE', PayrollName: e[1].split(' ').reverse().join(', '), Notes: '' }));
     [['SHOP','ATI','','','Shop / warehouse / office (non-billable)',''],
-     ['GHS-45021-Q1187','GHS','45021','Q1187','Gulfport HS press box & SQ rack','Gulfport School District:GHS Press Box'],
-     ['RBC-7710-Q1203','RBC','7710','Q1203','Ridgecrest Baptist wireless mics','Ridgecrest Baptist Church:Wireless Mics'],
-     ['PRCC-22981-Q1220','PRCC','22981','Q1220','PRCC Coliseum video board','Pearl River CC:Coliseum Video Board'],
-     ['MSU-88104-Q1176','MSU','88104','Q1176','MSU Bldg R conf 112 / training 113',''],
-     ['JPS-3392-Q1231','JPS','3392','Q1231','JPS bells & paging - Phase 1','Jackson Public Schools:Bells & Paging Ph1']]
+     ['GHS45021-Q1187','GHS','45021','Q1187','Gulfport HS press box & SQ rack','Gulfport School District:GHS Press Box'],
+     ['RBC7710-Q1203','RBC','7710','Q1203','Ridgecrest Baptist wireless mics','Ridgecrest Baptist Church:Wireless Mics'],
+     ['PRCC22981-Q1220','PRCC','22981','Q1220','PRCC Coliseum video board','Pearl River CC:Coliseum Video Board'],
+     ['MSU88104-Q1176','MSU','88104','Q1176','MSU Bldg R conf 112 / training 113',''],
+     ['JPS3392-Q1231','JPS','3392','Q1231','JPS bells & paging - Phase 1','Jackson Public Schools:Bells & Paging Ph1']]
       .forEach(j => db.Jobs.push({ JobNo: j[0], Customer: j[1], PO: j[2], Quote: j[3], Description: j[4], Status: 'Active', RequestedBy: '', CreatedAt: nowStamp(), QBJob: j[5] }));
     // a couple of weeks of sample time
     const plan = {
-      E001: [['GHS-45021-Q1187', 6.5], ['Travel', 1], ['MSU-88104-Q1176', 2]],
-      E002: [['PRCC-22981-Q1220', 8], ['Travel', 1.5]],
-      E003: [['RBC-7710-Q1203', 4], ['SHOP', 2], ['JPS-3392-Q1231', 3]],
-      E004: [['JPS-3392-Q1231', 9], ['Travel', 1]],
-      E005: [['MSU-88104-Q1176', 5], ['SHOP', 3]]
+      E001: [['GHS45021-Q1187', 6.5], ['Travel', 1], ['MSU88104-Q1176', 2]],
+      E002: [['PRCC22981-Q1220', 8], ['Travel', 1.5]],
+      E003: [['RBC7710-Q1203', 4], ['SHOP', 2], ['JPS3392-Q1231', 3]],
+      E004: [['JPS3392-Q1231', 9], ['Travel', 1]],
+      E005: [['MSU88104-Q1176', 5], ['SHOP', 3]]
     };
     const today = new Date(); today.setHours(12);
     let n = 0;
