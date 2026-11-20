@@ -356,6 +356,7 @@ function dayProblems(empId, d, info){
   const out = [], dl = DOW[parse(d).getDay()] + ' ' + fmtS(d);
   if (info.card && !info.card.End && d < todayISO()) out.push({ t: 'No Out time ' + dl, bad: true });
   if (!info.card && info.asg > 0) out.push({ t: 'No In/Out ' + dl });
+  info.lines.filter(e => (e.Type === 'Job' || e.Type === 'Shop' || e.Type === 'Travel') && e.Start && !e.End).forEach(e => out.push({ t: (e.JobNo || e.Type) + ' has no end time ' + dl, bad: true }));
   if (info.bal !== null && info.bal > 0.009) out.push({ t: h2(info.bal) + ' hrs not on a job ' + dl, bad: true, bal: true });
   if (info.bal !== null && info.bal < -0.009) out.push({ t: 'Jobs over day by ' + h2(-info.bal) + ' ' + dl, bad: true, bal: true });
   return out;
@@ -504,7 +505,7 @@ function renderSheets(){
           <td><span class="pill ${e.Type}">${e.Type === 'Day' ? 'In/Out' : e.Type === 'Break' ? 'Lunch' : e.Type}</span></td>
           <td class="num"><b>${esc(e.JobNo)}</b>${j && j.Status === 'Pending' ? ' <span class="pill Pending">pending</span>' : (e.JobNo && !j ? ' <span class="flag bad">not on list</span>' : '')}</td>
           <td class="muted">${esc(j ? [j.CustomerName || j.Customer, j.Description].filter(Boolean).join(' · ') : '')}</td>
-          <td class="num muted">${e.Start ? to12(e.Start) + '–' + to12(e.End) : ''}</td>
+          <td class="num muted">${e.Start ? to12(e.Start) + '–' + (e.End ? to12(e.End) : '<span class="flag bad">running</span>') : ''}${+e.LunchMin && e.Type !== 'Day' ? `<div style="font-size:11.5px">${e.LunchMin}m break</div>` : ''}</td>
           <td class="n ${isPaid(e) || e.Type === 'PTO' || e.Type === 'Holiday' || e.Type === 'Day' ? '' : 'muted'}">${e.Type === 'Day' && !e.End ? '<span class="muted">—</span>' : h2(e.Hours)}</td>
           <td>${e.Type === 'Day' ? `<span class="muted">Lunch ${+e.LunchMin ? e.LunchMin + ' min' : 'none'}</span> ` : ''}${esc(e.Notes)}${e.OfficeNote ? `<div class="onote">Office: ${esc(e.OfficeNote)}</div>` : ''}</td>
           <td><span class="pill ${e.Status}">${e.Status}</span>${e.QBExported ? (/^EDITED/.test(e.QBExported) ? '<br><span class="flag bad" title="Changed after it was sent to QuickBooks — fix it in QuickBooks too">edited after QB</span>' : '<br><span class="pill Active" title="Sent to QuickBooks ' + esc(e.QBExported) + '">in QB</span>') : ''}</td>
@@ -565,7 +566,7 @@ function editEntry(e){
       <div class="full" id="fJobWrap"><label>Job #</label><input id="fJob" list="jobDL" value="${esc(e.JobNo)}" style="font-family:var(--mono)"><datalist id="jobDL">${S.jobs.map(j => `<option value="${esc(j.JobNo)}">${esc(j.Description || j.Customer)}</option>`).join('')}</datalist></div>
       <div><label id="fStartL">Start (optional)</label><input type="time" id="fStart" value="${esc(e.Start)}"></div>
       <div><label id="fEndL">End (optional)</label><input type="time" id="fEnd" value="${esc(e.End)}"></div>
-      <div id="fLunchWrap"><label>Lunch (minutes)</label><input type="number" id="fLunch" step="5" min="0" max="240" value="${esc(e.Type === 'Day' ? e.LunchMin : (S.settings.DefaultLunchMinutes == null ? 60 : S.settings.DefaultLunchMinutes))}"></div>
+      <div id="fLunchWrap"><label id="fLunchL">Lunch (minutes)</label><input type="number" id="fLunch" step="5" min="0" max="240" value="${esc(e.Type === 'Day' || +e.LunchMin ? (+e.LunchMin || 0) : (isNew ? (S.settings.DefaultLunchMinutes == null ? 60 : S.settings.DefaultLunchMinutes) : 0))}"></div>
       <div><label id="fHoursL">Hours</label><input type="number" id="fHours" step="0.25" min="0" max="24" value="${esc(e.Hours)}"></div>
       <div><label>Status</label><select id="fStatus">${['Open','Submitted','Approved'].map(t => `<option ${t === e.Status ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
       <div class="full"><label>Notes</label><input id="fNotes" value="${esc(e.Notes)}"></div>
@@ -574,11 +575,13 @@ function editEntry(e){
     <div class="err" id="fErr"></div>
     <div class="acts">${isNew ? '' : '<button class="btn left" id="fDel" style="color:var(--bad)">Delete</button>'}<button class="btn" data-close>Cancel</button><button class="btn pri" id="fSave">Save</button></div>`);
   const isDay = () => $('#fType').value === 'Day';
-  const calc = () => { const a = $('#fStart').value, b = $('#fEnd').value; if (a && b) { let d = (+b.slice(0,2)*60 + +b.slice(3)) - (+a.slice(0,2)*60 + +a.slice(3)); if (d < 0) d += 1440; if (isDay()) d -= (+$('#fLunch').value || 0); $('#fHours').value = (Math.max(0, d)/60).toFixed(2); } };
+  const isWorkT = () => ['Job','Shop','Travel'].includes($('#fType').value);
+  const calc = () => { const a = $('#fStart').value, b = $('#fEnd').value; if (a && b) { let d = (+b.slice(0,2)*60 + +b.slice(3)) - (+a.slice(0,2)*60 + +a.slice(3)); if (d < 0) d += 1440; if (isDay() || isWorkT()) d -= (+$('#fLunch').value || 0); $('#fHours').value = (Math.max(0, d)/60).toFixed(2); } else if (a && !b && isWorkT()) $('#fHours').value = '0'; };
   const paintType = () => {
     const day = isDay();
     $('#fJobWrap').classList.toggle('hidden', day || $('#fType').value === 'PTO' || $('#fType').value === 'Holiday');
-    $('#fLunchWrap').classList.toggle('hidden', !day);
+    $('#fLunchWrap').classList.toggle('hidden', !day && !isWorkT());
+    $('#fLunchL').textContent = day ? 'Lunch (minutes)' : 'Break / lunch (minutes)';
     $('#fStartL').textContent = day ? 'In' : 'Start (optional)'; $('#fEndL').textContent = day ? 'Out' : 'End (optional)';
     $('#fHoursL').textContent = day ? 'Paid hours (calculated)' : 'Hours'; $('#fHours').readOnly = day;
     calc();
@@ -586,7 +589,7 @@ function editEntry(e){
   $('#fStart').oninput = $('#fEnd').oninput = $('#fLunch').oninput = calc;
   $('#fType').onchange = paintType; paintType();
   $('#fSave').onclick = async () => {
-    const x = { EntryID: e.EntryID, EmpID: e.EmpID, Date: $('#fDate').value, Type: $('#fType').value, JobNo: isDay() ? '' : $('#fJob').value.trim().toUpperCase(), Start: $('#fStart').value, End: $('#fEnd').value, Hours: +$('#fHours').value, LunchMin: isDay() ? (+$('#fLunch').value || 0) : '', Notes: $('#fNotes').value, Status: $('#fStatus').value, OfficeNote: $('#fONote').value };
+    const x = { EntryID: e.EntryID, EmpID: e.EmpID, Date: $('#fDate').value, Type: $('#fType').value, JobNo: isDay() ? '' : $('#fJob').value.trim().toUpperCase(), Start: $('#fStart').value, End: $('#fEnd').value, Hours: +$('#fHours').value, LunchMin: isDay() || isWorkT() ? (+$('#fLunch').value || 0) : '', Notes: $('#fNotes').value, Status: $('#fStatus').value, OfficeNote: $('#fONote').value };
     if (isDay()) {
       if (isNew) x.EntryID = 'day-' + x.EmpID + '-' + x.Date;
       const dup = S.entries.find(y => y.Type === 'Day' && y.EmpID === x.EmpID && y.Date === x.Date && (isNew || y.EntryID !== x.EntryID));
@@ -1105,7 +1108,7 @@ function exportRows(){
     'Job Hrs': +h2(w.job), 'Shop Hrs': +h2(w.shop), 'Travel Hrs': +h2(w.travel), 'Lunch Hrs (unpaid)': +h2(w.brk) })); });
   const totals = emps.map(e => { const s = summarize(e.EmpID); return { 'Employee': e.Name, 'Payroll Name': e.PayrollName || e.Name, 'Regular Hrs': +h2(s.reg), 'OT Hrs': +h2(s.ot), 'PTO Hrs': +h2(s.pto), 'Holiday Hrs': +h2(s.hol), 'Total Paid Hrs': +h2(s.reg + s.ot + s.pto + s.hol), 'Status': s.st.Open ? 'Has open entries' : s.st.Submitted ? 'Awaiting approval' : (s.st.Approved ? 'Approved' : 'No time') }; });
   const list = S.entries.filter(inRange).sort((a, b) => a.Employee.localeCompare(b.Employee) || a.Date.localeCompare(b.Date) || (a.Start || '').localeCompare(b.Start || ''));
-  const detail = list.map(e => { const j = job(e.JobNo) || {}; return { 'Date': fmtUS(e.Date), 'Day': DOW[parse(e.Date).getDay()], 'Employee': e.Employee, 'Payroll Name': pname(e.EmpID), 'Type': e.Type, 'Job #': e.JobNo, 'Customer': j.Customer || '', 'Customer Name': j.CustomerName || '', 'Job Description': j.Description || '', 'Start': e.Start, 'End': e.End, 'Lunch (min)': e.Type === 'Day' ? (+e.LunchMin || 0) : '', 'Hours': +h2(e.Hours), 'Paid': e.Type === 'Day' ? 'Day total' : isPaid(e) || e.Type === 'PTO' || e.Type === 'Holiday' ? 'Y' : 'N', 'Status': e.Status, 'Notes': e.Notes, 'Office Note': e.OfficeNote }; });
+  const detail = list.map(e => { const j = job(e.JobNo) || {}; return { 'Date': fmtUS(e.Date), 'Day': DOW[parse(e.Date).getDay()], 'Employee': e.Employee, 'Payroll Name': pname(e.EmpID), 'Type': e.Type, 'Job #': e.JobNo, 'Customer': j.Customer || '', 'Customer Name': j.CustomerName || '', 'Job Description': j.Description || '', 'Start': e.Start, 'End': e.End, 'Lunch/Break (min)': +e.LunchMin || '', 'Hours': +h2(e.Hours), 'Paid': e.Type === 'Day' ? 'Day total' : isPaid(e) || e.Type === 'PTO' || e.Type === 'Holiday' ? 'Y' : 'N', 'Status': e.Status, 'Notes': e.Notes, 'Office Note': e.OfficeNote }; });
   const jobs = [];
   jobHoursData().forEach(r => { const j = job(r.JobNo) || {}; Object.entries(r.techs).forEach(([id, t]) => jobs.push({ 'Job #': r.JobNo, 'Customer': j.Customer || '', 'Customer Name': j.CustomerName || '', 'PO': j.PO || '', 'Quote': j.Quote || '', 'Description': j.Description || '', 'Employee': empName(id), 'Labor Hrs': +h2(t.labor), 'Travel Hrs': +h2(t.travel), 'Total Hrs': +h2(t.labor + t.travel) })); });
   const qb = qbLines({ approvedOnly: false, skipExported: false }).lines.map(l => ({ 'Date': fmtUS(l.e.Date), 'Employee': l.emp, 'Customer:Job': l.job, 'Service Item': l.item, 'Payroll Item': l.pitem, 'Hours': +h2(l.hours), 'Duration': dur(l.hours), 'Billable': l.bill ? 'Y' : 'N', 'Job #': l.e.JobNo, 'Status': l.e.Status, 'In QB': l.e.QBExported ? 'Y' : '', 'Notes': l.note }));

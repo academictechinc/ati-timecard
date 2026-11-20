@@ -112,6 +112,22 @@ main{padding:14px 12px calc(120px + var(--safe-b))}
 .tnow button{padding:12px 12px;border-radius:12px;border:1.5px solid var(--accent);color:var(--accent);font-weight:800;font-size:13px;background:#fff6f0}
 .paidbox{background:var(--bg);border-radius:12px;padding:12px;text-align:center;margin-bottom:12px}
 .paidbox b{font-family:var(--mono);font-size:30px}
+.tbtn{flex:1;min-width:0;text-align:left;padding:11px 12px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font-family:var(--mono);font-size:20px;font-weight:800}
+.tbtn.empty{color:var(--ink2);font-family:var(--sans);font-size:15px;font-weight:600}
+.tbtn small{display:block;font-family:var(--sans);font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);margin-bottom:1px}
+.trow{display:flex;gap:8px;align-items:stretch}
+.trow .clr{padding:0 12px;border-radius:12px;border:1.5px solid var(--line);color:var(--ink2);background:#fff;font-weight:700}
+.tpick{position:fixed;inset:0;z-index:70;background:rgba(15,18,26,.55);display:flex;align-items:flex-end;justify-content:center;animation:fade .12s}
+.tpick .box{background:var(--card);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:14px 16px calc(16px + var(--safe-b));animation:up .18s ease-out}
+.tpick .disp{font-family:var(--mono);font-size:40px;font-weight:800;text-align:center;margin:2px 0 10px}
+.tpick .lbl{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);margin:8px 0 6px}
+.tpick .g6{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.tpick .g6 button,.tpick .ap button{padding:11px 0;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-family:var(--mono);font-weight:800;font-size:17px}
+.tpick .g6 button.on,.tpick .ap button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.tpick .ap{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tpick .ap button{font-family:var(--sans);font-size:18px}
+.pill.run{background:#fff1e6;color:var(--accent)}
+.entry.running{border-color:var(--accent)}
 .adds{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
 .add{background:var(--card);border:1.5px solid var(--ink);border-radius:12px;padding:12px 4px 10px;font-weight:800;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:4px}
 .add i{font-style:normal;font-size:20px;line-height:1}
@@ -519,7 +535,56 @@ function dayPaid(d){
   if (c && c.End) return Math.max(0, +c.Hours - (S.settings.TravelPaid === false ? sumType(lines, 'Travel') : 0));
   return sumPaid(lines);
 }
+const isWork = e => e.Type === 'Job' || e.Type === 'Shop' || e.Type === 'Travel';
+function running(d){ return dayEntries(d).filter(e => isWork(e) && e.Start && !e.End); }
+function entryBreaks(d){ return dayEntries(d).filter(isWork).reduce((s, e) => s + (+e.LunchMin || 0), 0); }
+/** When techs log breaks on their job entries, the day card's lunch follows them so nothing is entered twice. */
+function syncCardLunch(d){
+  const c = dayCard(d), b = entryBreaks(d);
+  if (!c || c.Status !== 'Open' || !b || +c.LunchMin === b) return;
+  saveCard(Object.assign({}, c, { LunchMin: b, Hours: cardHours(c.Start, c.End, b) }));
+}
 function dayBalance(d){ const c = dayCard(d); return c && c.End ? Math.round((+c.Hours - assigned(dayEntries(d))) * 100) / 100 : null; }
+/* ---- big-button time picker. defaultAP: 'AM' for In/Start, 'PM' for Out/End ---- */
+function pickTime(title, value, defaultAP, onDone){
+  let h, m, ap;
+  if (value) { const [H, M] = value.split(':').map(Number); ap = H >= 12 ? 'PM' : 'AM'; h = H % 12 || 12; m = M; }
+  else { h = null; m = 0; ap = defaultAP; }
+  const host = document.createElement('div'); host.className = 'tpick';
+  const close = () => host.remove();
+  const out = () => h == null ? '' : pad((h % 12) + (ap === 'PM' ? 12 : 0)) + ':' + pad(m);
+  const draw = () => {
+    host.innerHTML = `<div class="box"><div class="grab"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between"><b style="font-size:17px">${esc(title)}</b><button class="btn ghost" data-now style="padding:8px 14px;border-color:var(--accent);color:var(--accent)">Now</button></div>
+      <div class="disp">${h == null ? '--' : h}:${pad(m)} <span style="font-size:24px">${ap}</span></div>
+      <div class="ap">${['AM','PM'].map(x => `<button data-ap="${x}" class="${ap === x ? 'on' : ''}">${x}</button>`).join('')}</div>
+      <div class="lbl">Hour</div><div class="g6">${[1,2,3,4,5,6,7,8,9,10,11,12].map(x => `<button data-h="${x}" class="${h === x ? 'on' : ''}">${x}</button>`).join('')}</div>
+      <div class="lbl">Minute</div><div class="g6">${[0,5,10,15,20,25,30,35,40,45,50,55].map(x => `<button data-m="${x}" class="${m === x ? 'on' : ''}">:${pad(x)}</button>`).join('')}</div>
+      <div class="actions" style="margin-top:14px"><button class="btn ghost" data-x>Cancel</button><button class="btn accent" data-ok ${h == null ? 'disabled' : ''}>Set ${h == null ? '' : h + ':' + pad(m) + ' ' + ap}</button></div></div>`;
+  };
+  draw();
+  host.onclick = e => {
+    if (e.target === host || e.target.closest('[data-x]')) return close();
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.ap) ap = b.dataset.ap;
+    else if (b.dataset.h) h = +b.dataset.h;
+    else if (b.dataset.m) m = +b.dataset.m;
+    else if (b.hasAttribute('data-now')) { const [H, M] = nowHM().split(':').map(Number); ap = H >= 12 ? 'PM' : 'AM'; h = H % 12 || 12; m = M; }
+    else if (b.hasAttribute('data-ok')) { onDone(out()); return close(); }
+    draw();
+  };
+  document.body.appendChild(host);
+}
+/** A tap-to-set time field: <button> showing the time, plus a clear (×) button. */
+function timeField(id, label, value, defaultAP, title){
+  return `<div class="trow"><button type="button" class="tbtn ${value ? '' : 'empty'}" id="${id}" data-v="${esc(value || '')}" data-ap="${defaultAP}" data-title="${esc(title)}"><small>${label}</small>${value ? to12(value).replace(/([ap])$/, ' $1m').toUpperCase() : 'Tap to set'}</button><button type="button" class="clr" data-clr="${id}" aria-label="Clear">×</button></div>`;
+}
+function wireTimeFields(root, onChange){
+  root.querySelectorAll('.tbtn').forEach(b => b.onclick = () => pickTime(b.dataset.title, b.dataset.v, b.dataset.ap, v => { setTF(b, v); onChange && onChange(); }));
+  root.querySelectorAll('[data-clr]').forEach(b => b.onclick = () => { setTF(root.querySelector('#' + b.dataset.clr), ''); onChange && onChange(); });
+}
+function setTF(b, v){ b.dataset.v = v; b.classList.toggle('empty', !v); b.innerHTML = b.innerHTML.replace(/<\/small>[\s\S]*$/, '</small>' + (v ? to12(v).replace(/([ap])$/, ' $1m').toUpperCase() : 'Tap to set')); }
+const tfv = id => { const b = $('#' + id); return b ? b.dataset.v : ''; };
 function nowHM(){ const n = new Date(); return pad(n.getHours()) + ':' + pad(n.getMinutes()); }
 function fmtLunch(m){ m = +m || 0; return !m ? 'None' : m % 60 === 0 ? (m / 60) + ' hr' : m > 60 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'm' : m + ' min'; }
 function cardHours(inT, outT, lunch){ if (!inT || !outT) return 0; return Math.round((diffHours(inT, outT) - (+lunch || 0) / 60) * 100) / 100; }
@@ -567,13 +632,14 @@ function render(){
     $('#entries').innerHTML = list.map(e => {
       const j = jobInfo(e.JobNo);
       const title = e.Type === 'Job' ? e.JobNo : e.Type === 'Travel' ? (e.JobNo ? 'Travel → ' + e.JobNo : 'Travel') : e.Type === 'Shop' ? 'Shop / Office' : typeLabel(e.Type);
-      const sub = [ e.Start && e.End ? to12(e.Start)+'–'+to12(e.End) : '', j && (e.Type==='Job') ? [j.CustomerName || j.Customer, j.Description].filter(Boolean).join(' · ') : '', e.Notes ].filter(Boolean).join(' · ');
-      const pills = `<span class="pill ${e.Type}">${typeLabel(e.Type)}</span>` + (e.Status !== 'Open' ? `<span class="pill ${e.Status}">${e.Status === 'Approved' ? '✓ ' : '🔒 '}${e.Status}</span>` : '') + (pend.has(e.EntryID) ? '<span class="pill unsynced">Not synced</span>' : '') + (j && j.Status === 'Pending' ? '<span class="pill Pending">New job</span>' : '');
-      return `<button class="entry ${isPaid(e) || e.Type==='PTO' || e.Type==='Holiday' ? '' : 'unpaid'}" data-id="${esc(e.EntryID)}">
+      const sub = [ e.Start && e.End ? to12(e.Start)+'–'+to12(e.End) : e.Start ? 'Started ' + to12(e.Start) : '', +e.LunchMin && e.Type !== 'Day' ? +e.LunchMin + 'm break' : '', j && (e.Type==='Job') ? [j.CustomerName || j.Customer, j.Description].filter(Boolean).join(' · ') : '', e.Notes ].filter(Boolean).join(' · ');
+      const pills = `<span class="pill ${e.Type}">${typeLabel(e.Type)}</span>` + (e.Status !== 'Open' ? `<span class="pill ${e.Status}">${e.Status === 'Approved' ? '✓ ' : '🔒 '}${e.Status}</span>` : '') + (pend.has(e.EntryID) ? '<span class="pill unsynced">Not synced</span>' : '') + (j && j.Status === 'Pending' ? '<span class="pill Pending">New job</span>' : '') + (isWork(e) && e.Start && !e.End ? '<span class="pill run">● Running</span>' : '');
+      const run = isWork(e) && e.Start && !e.End;
+      return `<button class="entry ${isPaid(e) || e.Type==='PTO' || e.Type==='Holiday' ? '' : 'unpaid'} ${run ? 'running' : ''}" data-id="${esc(e.EntryID)}">
         <div class="bar" style="background:${TYPE_COLOR[e.Type]}"></div>
         <div class="body"><div class="t1">${esc(title)}</div><div class="t2">${pills}${esc(sub)}</div>
           ${e.OfficeNote && e.Status === 'Open' ? `<div class="onote">Office: ${esc(e.OfficeNote)}</div>` : ''}</div>
-        <div class="hrs">${fmtH(+e.Hours)}<small>${e.Type === 'Break' ? 'unpaid' : 'hrs'}</small></div></button>`;
+        <div class="hrs">${run ? '<span style="color:var(--accent);font-size:15px">…</span>' : fmtH(+e.Hours)}<small>${e.Type === 'Break' ? 'unpaid' : run ? 'running' : 'hrs'}</small></div></button>`;
     }).join('');
   }
   $('#copyBtn').classList.toggle('hidden', list.length > 0 || !!dayCard(S.sel));
@@ -640,11 +706,9 @@ function openDayEditor(pre){
   const isToday = S.sel === todayISO();
   const el = openSheet(`<h3>Day card · <span style="color:var(--ink2);font-weight:600">${fmtLong(S.sel)}</span></h3>
     ${locked ? `<div class="lockmsg">🔒 This day is <b>${c.Status}</b>. To change it, ask the office.</div>` : ''}
-    <div>
-      <div class="field"><label>In</label><div class="tnow"><input type="time" id="dIn" value="${esc(v.Start)}">${isToday ? '<button data-now="dIn">Now</button>' : ''}</div></div>
-      <div class="field"><label>Out</label><div class="tnow"><input type="time" id="dOut" value="${esc(v.End)}">${isToday ? '<button data-now="dOut">Now</button>' : ''}</div></div>
-    </div>
-    <div class="field"><label>Lunch</label>
+    <div class="field" style="display:grid;gap:8px">${timeField('dIn', 'In', v.Start, 'AM', 'Time in')}${timeField('dOut', 'Out', v.End, 'PM', 'Time out')}</div>
+    <div class="field" id="dLfromJobs" style="display:none"><label>Lunch</label><div class="warnbox" style="background:var(--bg);color:var(--ink)"></div></div>
+    <div class="field" id="dLwrap"><label>Lunch</label>
       <div class="lchips" id="dL">${[[0,'None'],[30,'30m'],[45,'45m'],[60,'1 hr'],[90,'1.5 hr']].map(([m,l]) => `<button data-m="${m}">${l}</button>`).join('')}</div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:14px;color:var(--ink2)">Other: <input type="number" id="dLm" min="0" max="240" step="5" value="${esc(v.LunchMin)}" style="width:80px;padding:8px;border:1.5px solid var(--line);border-radius:9px;font-family:var(--mono)"> minutes</div>
       <div class="warnbox hidden" id="dLwarn" style="margin-top:8px">Lunches shorter than 30 minutes usually count as paid time. Check with the office.</div>
@@ -658,29 +722,36 @@ function openDayEditor(pre){
       ${locked ? '' : '<button class="btn accent" id="dSave">Save</button>'}
     </div>`);
   if (locked) el.querySelectorAll('input,button:not(#dCancel)').forEach(x => x.disabled = true);
+  // End day: pre-fill Out with the current time
+  
+  const eb = entryBreaks(S.sel);
+  if (eb) { $('#dLm').value = eb; $('#dLwrap').style.display = 'none'; $('#dLfromJobs').style.display = '';
+    $('#dLfromJobs .warnbox').innerHTML = `<b>${fmtLunch(eb)}</b> from the breaks on your job entries. Change it on those entries.`; }
   const paint = () => {
     const m = Math.max(0, parseInt($('#dLm').value, 10) || 0);
     el.querySelectorAll('#dL button').forEach(b => b.classList.toggle('on', +b.dataset.m === m));
     $('#dLwarn').classList.toggle('hidden', !(m > 0 && m < 30));
-    const i = $('#dIn').value, o = $('#dOut').value;
+    const i = tfv('dIn'), o = tfv('dOut');
     const h = cardHours(i, o, m);
     $('#dPaid').textContent = i && o ? fmtH(h) : '—';
     const asg = assigned(dayEntries(S.sel));
     $('#dPaidSub').textContent = !i ? 'Enter your In time' : !o ? 'Add your Out time when you finish' : asg ? `${fmtH(asg)} hrs already assigned to jobs` : '';
   };
   paint();
-  ['#dIn','#dOut','#dLm'].forEach(x => $(x).oninput = paint);
+  $('#dLm').oninput = paint; wireTimeFields(el, paint);
   $('#dL').onclick = e => { const b = e.target.closest('button'); if (b) { $('#dLm').value = b.dataset.m; paint(); } };
-  el.querySelectorAll('[data-now]').forEach(b => b.onclick = () => { $('#' + b.dataset.now).value = nowHM(); paint(); });
   $('#dCancel').onclick = closeSheet;
   if ($('#dDel')) $('#dDel').onclick = () => { if (!confirm('Delete the In/Out/Lunch for this day? Your job lines stay.')) return; delete S.entries[c.EntryID]; queueOp({ op: 'delete', id: c.EntryID }); closeSheet(); render(); };
   if ($('#dSave')) $('#dSave').onclick = () => {
-    const i = $('#dIn').value, o = $('#dOut').value, m = Math.max(0, Math.min(240, parseInt($('#dLm').value, 10) || 0));
+    const i = tfv('dIn'), o = tfv('dOut'), m = Math.max(0, Math.min(240, parseInt($('#dLm').value, 10) || 0));
     if (!i) return $('#dErr').textContent = 'Enter your In time';
     if (o && m / 60 >= diffHours(i, o)) return $('#dErr').textContent = 'Lunch is longer than the day — check your times';
     const h = cardHours(i, o, m);
     if (o && h > 16 && !confirm(`That's ${fmtH(h)} paid hours. Save anyway?`)) return;
     saveCard({ EntryID: c ? c.EntryID : dayCardId(S.sel), Date: S.sel, Type: 'Day', Start: i, End: o, LunchMin: m, Hours: h, Notes: $('#dNotes').value.trim(), Status: 'Open', OfficeNote: c ? c.OfficeNote : '' });
+    // ending the day also ends any job still running
+    const run = o ? running(S.sel) : [];
+    if (run.length && confirm(`End ${run.map(x => x.JobNo || x.Type).join(', ')} at ${to12(o)} too?`)) { run.forEach(x => endEntry(x, o)); syncCardLunch(S.sel); }
     closeSheet(); render();
     const bal = dayBalance(S.sel);
     if (o && bal > 0.009) toast(`${fmtH(bal)} hrs left to assign to jobs`);
@@ -710,22 +781,39 @@ function closeSheet(){ $('#sheetHost').innerHTML = ''; }
 let ed = null;
 function openEditor(entry, type, draft){
   const locked = entry && entry.Status !== 'Open';
-  ed = draft || (entry ? Object.assign({}, entry) : { EntryID: newId(), Date: S.sel, Type: type || 'Job', JobNo: '', Start: '', End: '', Hours: type === 'Break' ? 0.5 : (type === 'PTO' || type === 'Holiday') ? 8 : 1, Notes: '', Status: 'Open', _new: true });
+  ed = draft || (entry ? Object.assign({}, entry) : { EntryID: newId(), Date: S.sel, Type: type || 'Job', JobNo: '', Start: '', End: '', Hours: (type === 'PTO' || type === 'Holiday') ? 8 : 1, LunchMin: 0, Notes: '', Status: 'Open', _new: true });
   if (!draft && !entry && (type === 'Job' || type === 'Travel') && S.recent[0]) ed.JobNo = S.recent[0];
-  // new job/shop/travel line: default to the hours still unassigned on the day card
-  if (!draft && !entry && (type === 'Job' || type === 'Shop' || type === 'Travel')) { const b = dayBalance(S.sel); if (b > 0.009) ed.Hours = Math.max(0.25, Math.round(b * 4) / 4); }
-  if (!draft) ed._mode = ed.Start && ed.End ? 'times' : 'hours';
+  if (!draft && !entry && isWork(ed)) {
+    // new job/shop/travel line: default to the hours still unassigned on the day card
+    const b = dayBalance(S.sel); if (b > 0.009) ed.Hours = Math.max(0.25, Math.round(b * 4) / 4);
+    ed._mode = LS.get('mode', 'times');
+    if (ed._mode === 'times') {
+      // start where the last entry ended, or at the day's In time
+      const prev = dayEntries(S.sel).filter(e => isWork(e) && e.End).sort((x, y) => x.End.localeCompare(y.End)).pop();
+      const c = dayCard(S.sel);
+      ed.Start = prev ? prev.End : (c && !dayEntries(S.sel).some(isWork) ? c.Start : (S.sel === todayISO() ? nowHM() : ''));
+    }
+  }
+  if (!draft && entry) ed._mode = ed.Start ? 'times' : 'hours';
+  if (!draft && !isWork(ed)) ed._mode = ed.Start ? 'times' : 'hours';
+  // in hours mode we keep the gross hours on screen and subtract the break
+  if (!draft && entry && ed._mode === 'hours') ed.Hours = (+ed.Hours || 0) + (+ed.LunchMin || 0) / 60;
   const el = openSheet(`<h3>${entry ? (locked ? 'View' : 'Edit') + ' time' : 'Add time'} · <span style="color:var(--ink2);font-weight:600">${fmtLong(ed.Date)}</span></h3>
     ${locked ? `<div class="lockmsg">🔒 This entry is <b>${ed.Status}</b>. To change it, ask the office.</div>` : ''}
     ${ed.OfficeNote ? `<div class="warnbox"><b>Office note:</b> ${esc(ed.OfficeNote)}</div>` : ''}
     <div class="seg" id="edType">${(ed.Type === 'Break' ? TYPES.concat(['Break']) : TYPES).map(t => `<button data-t="${t}">${typeLabel(t)}</button>`).join('')}</div>
     <div class="field" id="edJobF"><label id="edJobL">Job number</label><button class="pick" id="edJob"></button></div>
     <div class="field"><label>Time</label>
-      <div class="mode"><button data-m="hours">Hours</button><button data-m="times">Start – End</button></div>
+      <div class="mode"><button data-m="times">Start – End</button><button data-m="hours">Hours</button></div>
+      <div id="edTimes">
+        <div style="display:grid;gap:8px">${timeField('edStart', 'Start', ed.Start, ed.Start ? 'AM' : (new Date().getHours() >= 12 && S.sel === todayISO() ? 'PM' : 'AM'), 'Start time')}${timeField('edEnd', 'End', ed.End, 'PM', 'End time')}</div>
+        <div class="calc" id="edCalc"></div></div>
       <div id="edHours"><div class="stepper"><button data-s="-0.25">−</button><div class="val"><span id="edH"></span><small>hrs</small></div><button data-s="0.25">＋</button></div>
         <div class="chips">${[0.5,1,2,4,8].map(v => `<button data-v="${v}">${v}</button>`).join('')}</div></div>
-      <div id="edTimes"><div class="times"><input type="time" id="edStart" step="300"><input type="time" id="edEnd" step="300"></div><div class="calc" id="edCalc"></div></div>
     </div>
+    <div class="field" id="edBrkF"><label>Break / lunch during this time</label>
+      <div class="lchips" id="edBrk">${[[0,'None'],[15,'15m'],[30,'30m'],[45,'45m'],[60,'1 hr']].map(([m,l]) => `<button data-m="${m}">${l}</button>`).join('')}</div></div>
+    <div class="paidbox" id="edPaidBox" style="margin-top:2px"><b id="edPaid">—</b> <span style="font-weight:700" id="edPaidU">hrs on this entry</span><div id="edPaidSub" style="font-size:13px;color:var(--ink2);margin-top:2px"></div></div>
     <div class="field"><label>Notes (optional)</label><textarea id="edNotes" placeholder="What you worked on, room #, etc."></textarea></div>
     <div class="err" id="edErr"></div>
     <div class="actions">
@@ -734,12 +822,24 @@ function openEditor(entry, type, draft){
       ${locked ? '' : '<button class="btn accent" id="edSave">Save</button>'}
     </div>`);
   $('#edNotes').value = ed.Notes || '';
-  $('#edStart').value = ed.Start || ''; $('#edEnd').value = ed.End || '';
   if (locked) el.querySelectorAll('button:not(#edCancel),input,textarea').forEach(x => x.disabled = true);
+  const brk = () => isWork(ed) ? (+ed.LunchMin || 0) : 0;
+  function result(){
+    if (ed._mode === 'times') {
+      const st = tfv('edStart'), en = tfv('edEnd');
+      if (!st) return { msg: 'Set a start time' };
+      if (!en) return { running: true, msg: 'Running. Set the End time when you finish (or it ends when you start your next job).' };
+      const g = diffHours(st, en), n = Math.round((g - brk() / 60) * 100) / 100;
+      return { hours: n, msg: `${to12(st)} – ${to12(en)} = ${fmtH(g)} hrs${brk() ? ' − ' + brk() + ' min break' : ''}` };
+    }
+    const g = +ed.Hours || 0, n = Math.round((g - brk() / 60) * 100) / 100;
+    return { hours: n, msg: brk() ? `${fmtH(g)} hrs − ${brk()} min break` : '' };
+  }
   function paint(){
     el.querySelectorAll('#edType button').forEach(b => b.classList.toggle('on', b.dataset.t === ed.Type));
     const needJob = ed.Type === 'Job' || ed.Type === 'Travel';
     $('#edJobF').classList.toggle('hidden', !needJob);
+    $('#edBrkF').classList.toggle('hidden', !isWork(ed));
     $('#edJobL').textContent = ed.Type === 'Travel' ? 'Traveling to job (optional)' : 'Job number';
     const j = jobInfo(ed.JobNo);
     $('#edJob').className = 'pick' + (ed.JobNo ? '' : ' placeholder');
@@ -748,41 +848,59 @@ function openEditor(entry, type, draft){
     $('#edHours').classList.toggle('hidden', ed._mode !== 'hours');
     $('#edTimes').classList.toggle('hidden', ed._mode !== 'times');
     $('#edH').textContent = fmtH(+ed.Hours || 0);
-    const dh = diffHours($('#edStart').value, $('#edEnd').value);
-    $('#edCalc').textContent = dh ? '= ' + fmtH(dh) + ' hrs' : 'Enter start and end';
+    el.querySelectorAll('#edBrk button').forEach(b => b.classList.toggle('on', +b.dataset.m === brk()));
+    const r = result();
+    $('#edPaid').textContent = r.running ? 'Running' : r.hours != null ? fmtH(r.hours) : '—';
+    $('#edPaidU').style.display = r.running ? 'none' : '';
+    $('#edPaidSub').textContent = r.msg || '';
+    $('#edCalc').textContent = '';
   }
   paint();
-  el.querySelector('#edType').onclick = e => { const b = e.target.closest('button'); if (!b) return; ed.Type = b.dataset.t; if (ed.Type !== 'Job' && ed.Type !== 'Travel') ed.JobNo = ''; else if (!ed.JobNo && S.recent[0]) ed.JobNo = S.recent[0]; paint(); };
-  el.querySelector('.mode').onclick = e => { const b = e.target.closest('button'); if (b) { ed._mode = b.dataset.m; paint(); } };
+  wireTimeFields(el, paint);
+  el.querySelector('#edType').onclick = e => { const b = e.target.closest('button'); if (!b) return; ed.Type = b.dataset.t; if (ed.Type !== 'Job' && ed.Type !== 'Travel') ed.JobNo = ''; else if (!ed.JobNo && S.recent[0]) ed.JobNo = S.recent[0]; if (!isWork(ed)) ed.LunchMin = 0; paint(); };
+  el.querySelector('.mode').onclick = e => { const b = e.target.closest('button'); if (b) { ed._mode = b.dataset.m; if (isWork(ed)) LS.set('mode', ed._mode); paint(); } };
   el.querySelector('.stepper').onclick = e => { const b = e.target.closest('[data-s]'); if (b) { ed.Hours = Math.max(0.25, Math.min(24, (+ed.Hours||0) + +b.dataset.s)); paint(); } };
   el.querySelector('.chips').onclick = e => { const b = e.target.closest('[data-v]'); if (b) { ed.Hours = +b.dataset.v; paint(); } };
-  $('#edStart').oninput = $('#edEnd').oninput = paint;
+  $('#edBrk').onclick = e => { const b = e.target.closest('button'); if (b) { ed.LunchMin = +b.dataset.m; paint(); } };
   $('#edJob').onclick = () => {
-    ed.Notes = $('#edNotes').value; ed.Start = $('#edStart').value; ed.End = $('#edEnd').value;
+    ed.Notes = $('#edNotes').value; ed.Start = tfv('edStart'); ed.End = tfv('edEnd');
     const d = ed, back = () => openEditor(d._new ? null : S.entries[d.EntryID], d.Type, d);
     openJobPicker(no => { d.JobNo = no; back(); }, back);
   };
   $('#edCancel').onclick = closeSheet;
   if ($('#edDel')) $('#edDel').onclick = () => {
     if (!confirm('Delete this entry?')) return;
-    delete S.entries[ed.EntryID]; queueOp({ op:'delete', id: ed.EntryID }); closeSheet(); render();
+    delete S.entries[ed.EntryID]; queueOp({ op:'delete', id: ed.EntryID }); syncCardLunch(ed.Date); closeSheet(); render();
   };
   if ($('#edSave')) $('#edSave').onclick = () => {
-    const e = { EntryID: ed.EntryID, Date: ed.Date, Type: ed.Type, JobNo: ed.JobNo || '', Notes: $('#edNotes').value.trim(), Status: 'Open', OfficeNote: ed.OfficeNote || '' };
+    const e = { EntryID: ed.EntryID, Date: ed.Date, Type: ed.Type, JobNo: ed.JobNo || '', LunchMin: brk(), Notes: $('#edNotes').value.trim(), Status: 'Open', OfficeNote: ed.OfficeNote || '' };
+    const r = result();
     if (ed._mode === 'times') {
-      e.Start = $('#edStart').value; e.End = $('#edEnd').value;
-      if (!e.Start || !e.End) return $('#edErr').textContent = 'Enter a start and end time';
-      e.Hours = diffHours(e.Start, e.End);
-    } else { e.Start = ''; e.End = ''; e.Hours = +ed.Hours; }
-    if (!(e.Hours > 0)) return $('#edErr').textContent = 'Hours must be more than 0';
+      e.Start = tfv('edStart'); e.End = tfv('edEnd');
+      if (!e.Start) return $('#edErr').textContent = 'Set a start time';
+      if (!isWork(e) && !e.End) return $('#edErr').textContent = 'Set an end time';
+      e.Hours = r.running ? 0 : r.hours;
+    } else { e.Start = ''; e.End = ''; e.Hours = r.hours; }
+    if (!r.running && !(e.Hours > 0)) return $('#edErr').textContent = brk() ? 'The break is longer than the time worked' : 'Hours must be more than 0';
     if (e.Type === 'Job' && !e.JobNo) return $('#edErr').textContent = 'Choose a job number';
     const day = dayEntries(e.Date).filter(x => x.EntryID !== e.EntryID);
     if (sumPaid(day) + (isPaid(e) ? e.Hours : 0) > 18 && !confirm('That makes over 18 paid hours on this day. Save anyway?')) return;
+    // starting a new job ends the one that's still running
+    const open = isWork(e) && e.Start ? day.filter(x => isWork(x) && x.Start && !x.End && x.Start <= e.Start) : [];
+    if (open.length && confirm(`End ${open.map(x => x.JobNo || x.Type).join(', ')} at ${to12(e.Start)}?`)) open.forEach(x => endEntry(x, e.Start));
     if (e.JobNo) { S.recent = [e.JobNo, ...S.recent.filter(x => x !== e.JobNo)].slice(0, 8); }
     S.entries[e.EntryID] = Object.assign({}, S.entries[e.EntryID] || {}, e, { EmpID: S.auth.empId, Employee: S.auth.name });
     queueOp({ op:'upsert', entry: e });
+    syncCardLunch(e.Date);
     closeSheet(); render();
   };
+}
+/** Finish a running entry at the given time. */
+function endEntry(x, at){
+  const g = diffHours(x.Start, at), n = Math.max(0, Math.round((g - (+x.LunchMin || 0) / 60) * 100) / 100);
+  const e = { EntryID: x.EntryID, Date: x.Date, Type: x.Type, JobNo: x.JobNo, Start: x.Start, End: at, LunchMin: +x.LunchMin || 0, Hours: n, Notes: x.Notes || '', Status: 'Open', OfficeNote: x.OfficeNote || '' };
+  S.entries[e.EntryID] = Object.assign({}, x, e);
+  queueOp({ op: 'upsert', entry: e });
 }
 /* job picker */
 function openJobPicker(onPick, onBack){
@@ -915,6 +1033,7 @@ function openSubmit(){
     if (!l.length && !c && dow !== 0 && dow !== 6 && d < todayISO()) empty.push(name);
     if (work.length && !c) problems.push(`${name}: add your In / Out / Lunch`);
     if (c && !c.End) problems.push(`${name}: add your Out time`);
+    l.filter(e => isWork(e) && e.Start && !e.End).forEach(e => problems.push(`${name}: ${e.JobNo || e.Type} has no end time`));
     const bal = dayBalance(d);
     if (bal !== null && bal > 0.009) problems.push(`${name}: ${fmtH(bal)} hrs not assigned to a job`);
     if (bal !== null && bal < -0.009) problems.push(`${name}: jobs add up to ${fmtH(-bal)} hrs more than your day`);
