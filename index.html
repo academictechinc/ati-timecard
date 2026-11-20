@@ -659,7 +659,11 @@ function renderDayCard(){
   if (!lines.length) {
     $('#dayCard').innerHTML = isToday ? `<div class="dcard-empty"><div class="btns"><button class="btn accent" id="dcStart">▶ Start day</button></div>
       <div style="font-size:13px;color:var(--ink2)">Starts your first job at the current time. Add each job as you go.</div></div>` : '';
-    if ($('#dcStart')) $('#dcStart').onclick = () => openEditor(null, 'Job', null, nowHM());
+    // Start day: pick the job fresh each morning (no default), then time in = now
+    if ($('#dcStart')) $('#dcStart').onclick = () => {
+      const draft = { EntryID: newId(), Date: S.sel, Type: 'Job', JobNo: '', Start: nowHM(), End: '', Hours: 1, LunchMin: 0, Notes: '', Status: 'Open', _new: true, _mode: 'times' };
+      openJobPicker(no => { draft.JobNo = no; openEditor(null, 'Job', draft); }, () => openEditor(null, 'Job', draft));
+    };
     return;
   }
   // summary built from the entries: first time in, last time out, breaks, paid
