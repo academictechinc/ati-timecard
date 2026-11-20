@@ -340,22 +340,26 @@ function inRange(e){ const [f, t] = range(); return e.Date >= f && e.Date <= t; 
 /** Per employee summary for the selected range. OT is per FLSA workweek. */
 /* ---- day cards: paid work for a day comes from In/Out/Lunch when there is one, otherwise from the job lines ---- */
 const asgOf = l => sum(l, e => e.Type === 'Job' || e.Type === 'Shop' || e.Type === 'Travel');
+// Each entry carries its own job, times and break; a day's paid time is just its entries added up.
+const isWorkE = e => e.Type === 'Job' || e.Type === 'Shop' || e.Type === 'Travel';
 function dayInfo(entriesForDay){
-  const card = entriesForDay.find(e => e.Type === 'Day');
   const lines = entriesForDay.filter(e => e.Type !== 'Day');
+  const work = lines.filter(isWorkE);
   const asg = asgOf(lines);
-  const paid = card && card.End ? Math.max(0, +card.Hours - (S.settings.TravelPaid ? 0 : sum(lines, e => e.Type === 'Travel'))) : sum(lines, isPaid);
-  const bal = card && card.End ? Math.round((+card.Hours - asg) * 100) / 100 : null;
-  const lunchH = card ? (+card.LunchMin || 0) / 60 : sum(lines, e => e.Type === 'Break');
-  return { card, lines, asg, paid, bal, lunchH };
+  const paid = sum(lines, isPaid);
+  const brkMin = work.reduce((t, e) => t + (+e.LunchMin || 0), 0);
+  const lunchH = brkMin / 60 + sum(lines, e => e.Type === 'Break');
+  const starts = work.map(e => e.Start).filter(Boolean).sort(), ends = work.map(e => e.End).filter(Boolean).sort();
+  // unpaid gaps between timed entries (e.g. 12:00–12:45 with nothing logged)
+  let gapMin = 0; const timed = work.filter(e => e.Start && e.End).sort((a, b) => a.Start.localeCompare(b.Start));
+  for (let i = 1; i < timed.length; i++) { const a = timed[i - 1].End, b = timed[i].Start; if (b > a) gapMin += (+b.slice(0,2)*60 + +b.slice(3)) - (+a.slice(0,2)*60 + +a.slice(3)); }
+  return { card: null, lines, asg, paid, bal: null, lunchH, brkMin, gapMin, first: starts[0] || '', last: ends[ends.length - 1] || '' };
 }
 function byDate(list){ const m = {}; list.forEach(e => { (m[e.Date] = m[e.Date] || []).push(e); }); return m; }
 function paidOnDates(dmap, test){ return Object.keys(dmap).filter(test).reduce((s, d) => s + dayInfo(dmap[d]).paid, 0); }
 /** Problems that must be fixed before time goes to QuickBooks / payroll. */
 function dayProblems(empId, d, info){
   const out = [], dl = DOW[parse(d).getDay()] + ' ' + fmtS(d);
-  if (info.card && !info.card.End && d < todayISO()) out.push({ t: 'No Out time ' + dl, bad: true });
-  if (!info.card && info.asg > 0) out.push({ t: 'No In/Out ' + dl });
   info.lines.filter(e => (e.Type === 'Job' || e.Type === 'Shop' || e.Type === 'Travel') && e.Start && !e.End).forEach(e => out.push({ t: (e.JobNo || e.Type) + ' has no end time ' + dl, bad: true }));
   if (info.bal !== null && info.bal > 0.009) out.push({ t: h2(info.bal) + ' hrs not on a job ' + dl, bad: true, bal: true });
   if (info.bal !== null && info.bal < -0.009) out.push({ t: 'Jobs over day by ' + h2(-info.bal) + ' ' + dl, bad: true, bal: true });
@@ -394,11 +398,8 @@ function summarize(empId){
     const info = dayInfo(days[d]);
     flags.push(...dayProblems(empId, d, info));
     if (info.paid > 12) flags.push({ t: h2(info.paid) + ' hrs on ' + fmtS(d), bad: true });
-    if (info.card && info.card.End) {
-      const lm = +info.card.LunchMin || 0;
-      if (lm > 0 && lm < 30) flags.push({ t: 'Short lunch (' + lm + 'm) ' + fmtS(d) });
-      if (!lm && info.paid >= 6) flags.push({ t: 'No lunch ' + fmtS(d) });
-    }
+    if (info.paid >= 6 && !info.brkMin && info.gapMin < 30 && !info.lines.some(e => e.Type === 'Break')) flags.push({ t: 'No break ' + fmtS(d) });
+    if (info.lines.some(e => isWorkE(e) && +e.LunchMin > 0 && +e.LunchMin < 30)) flags.push({ t: 'Unpaid break under 30m ' + fmtS(d) });
   });
   const pendingJobs = [...new Set(list.filter(e => e.JobNo && (!job(e.JobNo) || job(e.JobNo).Status === 'Pending')).map(e => e.JobNo))];
   pendingJobs.forEach(j => flags.push({ t: 'Unconfirmed job ' + j, bad: true }));
@@ -496,9 +497,9 @@ function renderSheets(){
       const [from, to] = range();
       for (let d = w.ws > from ? w.ws : from; d <= w.we && d <= to; d = addDays(d, 1)) {
         const list = s.list.filter(e => e.Date === d).sort((a, b) => (a.Type === 'Day' ? -1 : b.Type === 'Day' ? 1 : 0) || (a.Start || '99').localeCompare(b.Start || '99'));
-        const info = dayInfo(list), c = info.card;
-        const cardTxt = c ? `In ${to12(c.Start)} · Out ${c.End ? to12(c.End) : '<span class="flag bad">missing</span>'} · Lunch ${+c.LunchMin ? c.LunchMin + 'm' : 'none'}` : (info.asg ? '<span class="flag">no In/Out</span>' : '');
-        const balTxt = info.bal === null ? '' : Math.abs(info.bal) <= 0.009 ? ' · <span style="color:var(--ok)">jobs ✓</span>' : info.bal > 0 ? ` · <span class="flag bad">${h2(info.bal)} not on a job</span>` : ` · <span class="flag bad">jobs over by ${h2(-info.bal)}</span>`;
+        const info = dayInfo(list);
+        const cardTxt = info.first ? `${to12(info.first)} – ${info.last ? to12(info.last) : '?'} · Breaks ${info.brkMin ? info.brkMin + 'm' : 'none'}${info.gapMin ? ' · Gaps ' + info.gapMin + 'm' : ''}` : '';
+        const balTxt = '';
         body += `<tr class="daysep"><td colspan="10">${fmtL(d)} <span style="margin-left:14px;font-weight:500">${cardTxt}${balTxt}</span><span style="float:right" class="num">${list.length ? h2(info.paid + sum(list, e => e.Type === 'PTO' || e.Type === 'Holiday')) + ' paid' : '<span class="muted">no time</span>'}</span></td></tr>`;
         body += list.map(e => { const j = job(e.JobNo); return `<tr data-id="${esc(e.EntryID)}">
           <td><input type="checkbox" class="chk" data-c="${esc(e.EntryID)}" ${S.sel.has(e.EntryID) ? 'checked' : ''}></td>
@@ -558,15 +559,15 @@ function renderSheets(){
 function editEntry(e){
   const isNew = !e;
   const [from] = range();
-  e = e || { EntryID: 'o' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), EmpID: S.emp, Date: from <= todayISO() && todayISO() <= range()[1] ? todayISO() : from, Type: 'Job', JobNo: '', Start: '', End: '', Hours: 8, Notes: '', Status: 'Approved', OfficeNote: '' };
+  e = e || { LunchMin: 0, EntryID: 'o' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), EmpID: S.emp, Date: from <= todayISO() && todayISO() <= range()[1] ? todayISO() : from, Type: 'Job', JobNo: '', Start: '', End: '', Hours: 8, Notes: '', Status: 'Approved', OfficeNote: '' };
   modal(`<h3>${isNew ? 'Add entry' : 'Edit entry'} — ${esc(empName(e.EmpID))}</h3>
     <div class="form">
       <div><label>Date</label><input type="date" id="fDate" value="${esc(e.Date)}"></div>
-      <div><label>Type</label><select id="fType">${[['Day','In / Out / Lunch (day card)'],['Job','Job'],['Travel','Travel'],['Shop','Shop'],['PTO','PTO'],['Holiday','Holiday']].concat(e.Type === 'Break' ? [['Break','Lunch (old style)']] : []).map(([t, l]) => `<option value="${t}" ${t === e.Type ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div><label>Type</label><select id="fType">${(e.Type === 'Day' ? [['Day','In / Out / Lunch (old day card)']] : []).concat([['Job','Job'],['Travel','Travel'],['Shop','Shop'],['PTO','PTO'],['Holiday','Holiday']]).concat(e.Type === 'Break' ? [['Break','Lunch (old style)']] : []).map(([t, l]) => `<option value="${t}" ${t === e.Type ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="full" id="fJobWrap"><label>Job #</label><input id="fJob" list="jobDL" value="${esc(e.JobNo)}" style="font-family:var(--mono)"><datalist id="jobDL">${S.jobs.map(j => `<option value="${esc(j.JobNo)}">${esc(j.Description || j.Customer)}</option>`).join('')}</datalist></div>
       <div><label id="fStartL">Start (optional)</label><input type="time" id="fStart" value="${esc(e.Start)}"></div>
       <div><label id="fEndL">End (optional)</label><input type="time" id="fEnd" value="${esc(e.End)}"></div>
-      <div id="fLunchWrap"><label id="fLunchL">Lunch (minutes)</label><input type="number" id="fLunch" step="5" min="0" max="240" value="${esc(e.Type === 'Day' || +e.LunchMin ? (+e.LunchMin || 0) : (isNew ? (S.settings.DefaultLunchMinutes == null ? 60 : S.settings.DefaultLunchMinutes) : 0))}"></div>
+      <div id="fLunchWrap"><label id="fLunchL">Lunch (minutes)</label><input type="number" id="fLunch" step="5" min="0" max="240" value="${esc(+e.LunchMin || 0)}"></div>
       <div><label id="fHoursL">Hours</label><input type="number" id="fHours" step="0.25" min="0" max="24" value="${esc(e.Hours)}"></div>
       <div><label>Status</label><select id="fStatus">${['Open','Submitted','Approved'].map(t => `<option ${t === e.Status ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
       <div class="full"><label>Notes</label><input id="fNotes" value="${esc(e.Notes)}"></div>
@@ -586,8 +587,9 @@ function editEntry(e){
     $('#fHoursL').textContent = day ? 'Paid hours (calculated)' : 'Hours'; $('#fHours').readOnly = day;
     calc();
   };
-  $('#fStart').oninput = $('#fEnd').oninput = $('#fLunch').oninput = calc;
-  $('#fType').onchange = paintType; paintType();
+  const lockHours = () => { const t = !!($('#fStart').value && $('#fEnd').value); $('#fHours').readOnly = isDay() || (isWorkT() && t); $('#fHoursL').textContent = isDay() || (isWorkT() && t) ? 'Hours (from times)' : 'Hours'; };
+  $('#fStart').oninput = $('#fEnd').oninput = $('#fLunch').oninput = () => { calc(); lockHours(); };
+  $('#fType').onchange = () => { paintType(); lockHours(); }; paintType(); lockHours();
   $('#fSave').onclick = async () => {
     const x = { EntryID: e.EntryID, EmpID: e.EmpID, Date: $('#fDate').value, Type: $('#fType').value, JobNo: isDay() ? '' : $('#fJob').value.trim().toUpperCase(), Start: $('#fStart').value, End: $('#fEnd').value, Hours: +$('#fHours').value, LunchMin: isDay() || isWorkT() ? (+$('#fLunch').value || 0) : '', Notes: $('#fNotes').value, Status: $('#fStatus').value, OfficeNote: $('#fONote').value };
     if (isDay()) {
@@ -841,9 +843,8 @@ function renderEmps(){
 
     <div style="display:flex;align-items:center;margin:26px 0 12px"><h2 style="margin:0;font-size:18px">Settings</h2></div>
     <div class="panel"><div style="padding:14px;display:flex;gap:24px;align-items:flex-end;flex-wrap:wrap">
-      <div class="form" style="grid-template-columns:220px 220px 220px;gap:12px 24px">
+      <div class="form" style="grid-template-columns:220px 220px;gap:12px 24px">
         <div><label>Office dashboard idle timeout</label><div style="display:flex;align-items:center;gap:8px"><input type="number" id="secIdle" min="5" max="480" value="${esc(S.settings.OfficeIdleMinutes)}" style="width:90px"> minutes</div><div class="muted" style="font-size:12px;margin-top:4px">5 to 480. Signs out after this long with no activity.</div></div>
-        <div><label>Default lunch on day cards</label><div style="display:flex;align-items:center;gap:8px"><input type="number" id="secLunch" min="0" max="240" step="5" value="${esc(S.settings.DefaultLunchMinutes)}" style="width:90px"> minutes</div><div class="muted" style="font-size:12px;margin-top:4px">Pre-filled when a tech starts a day. They can change it.</div></div>
         <div><label>Tech phone PIN re-entry</label><div style="display:flex;align-items:center;gap:8px"><input type="number" id="secDays" min="0" max="365" value="${esc(S.settings.TechSessionDays)}" style="width:90px"> days</div><div class="muted" style="font-size:12px;margin-top:4px">0 = stay signed in until signed out or the PIN is reset.</div></div>
       </div>
       <button class="btn pri" id="secSave">Save settings</button>
@@ -855,7 +856,7 @@ function renderEmps(){
   document.querySelectorAll('[data-pin]').forEach(b => b.onclick = () => resetPin(S.employees.find(e => e.EmpID === b.dataset.pin)));
   $('#addUser').onclick = () => editUser(null);
   $('#secSave').onclick = async () => {
-    try { const r = await call('adminSaveSettings', { values: { OfficeIdleMinutes: $('#secIdle').value, TechSessionDays: $('#secDays').value, DefaultLunchMinutes: $('#secLunch').value } }); S.settings = r.settings; toast('Settings saved'); render(); }
+    try { const r = await call('adminSaveSettings', { values: { OfficeIdleMinutes: $('#secIdle').value, TechSessionDays: $('#secDays').value } }); S.settings = r.settings; toast('Settings saved'); render(); }
     catch (e) { fail(e); }
   };
   $('#secRevoke').onclick = async () => {

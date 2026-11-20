@@ -527,19 +527,16 @@ function dayEntries(d){ return Object.values(S.entries).filter(e => e.Date === d
 function sumPaid(list){ return list.filter(isPaid).reduce((s,e) => s + (+e.Hours||0), 0); }
 function sumType(list, t){ return list.filter(e => e.Type === t).reduce((s,e) => s + (+e.Hours||0), 0); }
 /* ---- day card (In / Out / Lunch). Paid hours come from the card; job lines split them up. ---- */
-function dayCard(d){ return Object.values(S.entries).find(e => e.Date === d && e.Type === 'Day'); }
+// The separate In/Out/Lunch card was retired: each entry carries its own job, times and break.
+function dayCard(d){ return null; }
 function dayCardId(d){ return 'day-' + S.auth.empId + '-' + d; }
 function assigned(lines){ return lines.filter(e => e.Type === 'Job' || e.Type === 'Shop' || e.Type === 'Travel').reduce((s,e) => s + (+e.Hours||0), 0); }
-function dayPaid(d){
-  const c = dayCard(d), lines = dayEntries(d);
-  if (c && c.End) return Math.max(0, +c.Hours - (S.settings.TravelPaid === false ? sumType(lines, 'Travel') : 0));
-  return sumPaid(lines);
-}
+function dayPaid(d){ return sumPaid(dayEntries(d)); }
 const isWork = e => e.Type === 'Job' || e.Type === 'Shop' || e.Type === 'Travel';
 function running(d){ return dayEntries(d).filter(e => isWork(e) && e.Start && !e.End); }
 function entryBreaks(d){ return dayEntries(d).filter(isWork).reduce((s, e) => s + (+e.LunchMin || 0), 0); }
 /** When techs log breaks on their job entries, the day card's lunch follows them so nothing is entered twice. */
-function syncCardLunch(d){
+function syncCardLunch(d){ return; 
   const c = dayCard(d), b = entryBreaks(d);
   if (!c || c.Status !== 'Open' || !b || +c.LunchMin === b) return;
   saveCard(Object.assign({}, c, { LunchMin: b, Hours: cardHours(c.Start, c.End, b) }));
@@ -627,7 +624,7 @@ function render(){
   $('#dayTotal').textContent = fmtH(dayPaid(S.sel));
   renderDayCard();
   if (!list.length) {
-    $('#entries').innerHTML = dayCard(S.sel) ? `<div class="empty"><b>No jobs yet</b>Add each job you worked and your travel.</div>` : '';
+    $('#entries').innerHTML = S.sel === todayISO() ? '' : `<div class="empty"><b>No time yet</b>Add each job with its start and end time.</div>`;
   } else {
     $('#entries').innerHTML = list.map(e => {
       const j = jobInfo(e.JobNo);
@@ -642,7 +639,7 @@ function render(){
         <div class="hrs">${run ? '<span style="color:var(--accent);font-size:15px">…</span>' : fmtH(+e.Hours)}<small>${e.Type === 'Break' ? 'unpaid' : run ? 'running' : 'hrs'}</small></div></button>`;
     }).join('');
   }
-  $('#copyBtn').classList.toggle('hidden', list.length > 0 || !!dayCard(S.sel));
+  $('#copyBtn').classList.toggle('hidden', list.length > 0);
 
   // week footer
   let paid = 0; for (let i = 0; i < 7; i++) paid += dayPaid(addDays(from, i));
@@ -657,38 +654,33 @@ function render(){
 }
 
 function renderDayCard(){
-  const d = S.sel, c = dayCard(d), isToday = d === todayISO(), pend = pendingSet();
-  if (!c) {
-    $('#dayCard').innerHTML = `<div class="dcard-empty"><div class="btns">
-        ${isToday ? '<button class="btn accent" id="dcStart">▶ Start day</button>' : ''}
-        <button class="btn ${isToday ? 'ghost' : ''}" id="dcAdd">${isToday ? 'Type times' : 'Enter In / Out / Lunch'}</button></div>
-      <div style="font-size:13px;color:var(--ink2)">Your In, Out and lunch set your paid hours. Then add each job.</div></div>`;
-    if ($('#dcStart')) $('#dcStart').onclick = startDay;
-    $('#dcAdd').onclick = () => openDayEditor();
+  const d = S.sel, isToday = d === todayISO(), lines = dayEntries(d).filter(isWork);
+  const run = running(d);
+  if (!lines.length) {
+    $('#dayCard').innerHTML = isToday ? `<div class="dcard-empty"><div class="btns"><button class="btn accent" id="dcStart">▶ Start day</button></div>
+      <div style="font-size:13px;color:var(--ink2)">Starts your first job at the current time. Add each job as you go.</div></div>` : '';
+    if ($('#dcStart')) $('#dcStart').onclick = () => openEditor(null, 'Job', null, nowHM());
     return;
   }
-  const bal = dayBalance(d), paid = c.End ? +c.Hours : null, asg = assigned(dayEntries(d));
-  let meter = '';
-  if (c.End) {
-    const pct = paid > 0 ? Math.min(100, asg / paid * 100) : 0;
-    const cls = Math.abs(bal) <= 0.009 ? 'ok' : bal < 0 ? 'over' : '';
-    const msg = cls === 'ok' ? '✓ All hours assigned to jobs' : bal > 0 ? `${fmtH(bal)} hrs left to assign to jobs` : `Jobs add up to ${fmtH(-bal)} hrs more than your day`;
-    meter = `<div class="meter ${cls}"><i style="width:${pct}%"></i></div><div class="dmsg ${cls}">${msg}</div>`;
-  } else meter = `<div class="dmsg">Day in progress. Tap <b>End day</b> when you're done.</div>`;
-  const lunchWarn = +c.LunchMin > 0 && +c.LunchMin < 30;
-  $('#dayCard').innerHTML = `<button class="dcard" id="dcEdit">
+  // summary built from the entries: first time in, last time out, breaks, paid
+  const starts = lines.map(e => e.Start).filter(Boolean).sort();
+  const ends = lines.map(e => e.End).filter(Boolean).sort();
+  const first = starts[0] || '', last = run.length ? '' : (ends[ends.length - 1] || '');
+  const brk = entryBreaks(d);
+  $('#dayCard').innerHTML = `<div class="dcard">
       <div class="row3">
-        <div><div class="k">In</div><div class="v">${to12(c.Start) || '—'}</div></div>
-        <div><div class="k">Out</div><div class="v ${c.End ? '' : 'dim'}">${c.End ? to12(c.End) : '—'}</div></div>
-        <div><div class="k">Lunch</div><div class="v" style="${lunchWarn ? 'color:#fcd34d' : ''}">${fmtLunch(c.LunchMin)}</div></div>
-      </div>${meter}
-      ${c.Status !== 'Open' ? `<div style="margin-top:6px"><span class="pill ${c.Status}">${c.Status === 'Approved' ? '✓ ' : '🔒 '}${c.Status}</span></div>` : ''}
-      ${pend.has(c.EntryID) ? '<div style="margin-top:6px"><span class="pill unsynced">Not synced</span></div>' : ''}
-      ${c.OfficeNote && c.Status === 'Open' ? `<div class="onote">Office: ${esc(c.OfficeNote)}</div>` : ''}
-    </button>
-    ${!c.End && c.Status === 'Open' ? `<div class="dayacts"><button class="btn accent" id="dcEnd">■ End day</button></div>` : ''}`;
-  $('#dcEdit').onclick = () => openDayEditor();
-  if ($('#dcEnd')) $('#dcEnd').onclick = () => openDayEditor({ End: S.sel === todayISO() ? nowHM() : '' });
+        <div><div class="k">In</div><div class="v ${first ? '' : 'dim'}">${first ? to12(first) : '—'}</div></div>
+        <div><div class="k">Out</div><div class="v ${last ? '' : 'dim'}">${run.length ? 'running' : last ? to12(last) : '—'}</div></div>
+        <div><div class="k">Breaks</div><div class="v">${brk ? fmtLunch(brk) : 'None'}</div></div>
+      </div>
+      <div class="dmsg ${run.length ? '' : 'ok'}">${run.length ? `● ${esc(run.map(x => x.JobNo || x.Type).join(', '))} running since ${to12(run[0].Start)}` : `${fmtH(dayPaid(d))} paid hrs on ${lines.length} entr${lines.length === 1 ? 'y' : 'ies'}`}</div>
+    </div>
+    ${run.length && isToday ? `<div class="dayacts"><button class="btn accent" id="dcEnd">■ End day (${to12(nowHM())})</button></div>` : ''}`;
+  if ($('#dcEnd')) $('#dcEnd').onclick = () => {
+    const t = nowHM();
+    if (!confirm(`End ${run.map(x => x.JobNo || x.Type).join(', ')} at ${to12(t)}?`)) return;
+    run.forEach(x => endEntry(x, t)); render(); toast('Day ended at ' + to12(t));
+  };
 }
 function saveCard(c){
   S.entries[c.EntryID] = Object.assign({}, S.entries[c.EntryID] || {}, c, { EmpID: S.auth.empId, Employee: S.auth.name });
@@ -779,19 +771,17 @@ function closeSheet(){ $('#sheetHost').innerHTML = ''; }
 
 /* entry editor */
 let ed = null;
-function openEditor(entry, type, draft){
+function openEditor(entry, type, draft, startAt){
   const locked = entry && entry.Status !== 'Open';
   ed = draft || (entry ? Object.assign({}, entry) : { EntryID: newId(), Date: S.sel, Type: type || 'Job', JobNo: '', Start: '', End: '', Hours: (type === 'PTO' || type === 'Holiday') ? 8 : 1, LunchMin: 0, Notes: '', Status: 'Open', _new: true });
   if (!draft && !entry && (type === 'Job' || type === 'Travel') && S.recent[0]) ed.JobNo = S.recent[0];
   if (!draft && !entry && isWork(ed)) {
-    // new job/shop/travel line: default to the hours still unassigned on the day card
-    const b = dayBalance(S.sel); if (b > 0.009) ed.Hours = Math.max(0.25, Math.round(b * 4) / 4);
-    ed._mode = LS.get('mode', 'times');
+    ed._mode = startAt ? 'times' : LS.get('mode', 'times');
     if (ed._mode === 'times') {
-      // start where the last entry ended, or at the day's In time
+      // start where the last entry ended, or now
       const prev = dayEntries(S.sel).filter(e => isWork(e) && e.End).sort((x, y) => x.End.localeCompare(y.End)).pop();
       const c = dayCard(S.sel);
-      ed.Start = prev ? prev.End : (c && !dayEntries(S.sel).some(isWork) ? c.Start : (S.sel === todayISO() ? nowHM() : ''));
+      ed.Start = startAt || (prev ? prev.End : (S.sel === todayISO() ? nowHM() : ''));
     }
   }
   if (!draft && entry) ed._mode = ed.Start ? 'times' : 'hours';
@@ -1009,15 +999,14 @@ async function copyLastDay(){
   if (!src) { toast('No earlier day found to copy'); return; }
   const items = dayEntries(src).filter(e => e.Type !== 'PTO' && e.Type !== 'Holiday' && e.Type !== 'Break');
   const card = dayCard(src);
-  if (!confirm(`Copy ${fmtLong(src)} to ${fmtLong(S.sel)}?\n${card ? 'In/Out/Lunch + ' : ''}${items.length} job line(s). You can adjust everything after.`)) return;
-  if (card && !dayCard(S.sel)) saveCard({ EntryID: dayCardId(S.sel), Date: S.sel, Type: 'Day', Start: card.Start, End: S.sel === todayISO() ? '' : card.End, LunchMin: card.LunchMin, Hours: S.sel === todayISO() ? 0 : card.Hours, Notes: '', Status: 'Open' });
+  if (!confirm(`Copy ${items.length} entr${items.length === 1 ? 'y' : 'ies'} from ${fmtLong(src)} to ${fmtLong(S.sel)}? You can adjust times after.`)) return;
   items.forEach((x, i) => {
-    const e = { EntryID: newId() + i, Date: S.sel, Type: x.Type, JobNo: x.JobNo, Start: x.Start, End: x.End, Hours: x.Hours, Notes: x.Notes, Status: 'Open', OfficeNote: '' };
+    const e = { EntryID: newId() + i, Date: S.sel, Type: x.Type, JobNo: x.JobNo, Start: x.Start, End: x.End, Hours: x.Hours, LunchMin: +x.LunchMin || 0, Notes: x.Notes, Status: 'Open', OfficeNote: '' };
     S.entries[e.EntryID] = Object.assign({ EmpID: S.auth.empId, Employee: S.auth.name }, e);
     queueOp({ op:'upsert', entry: e });
   });
   render();
-  if (S.sel === todayISO() && card) toast('Copied. Tap End day when you finish to set your Out time.');
+
 }
 
 /* submit week */
@@ -1027,17 +1016,14 @@ function openSubmit(){
   for (let i = 0; i < 7; i++) {
     const d = addDays(from, i); const l = dayEntries(d); const c = dayCard(d);
     const p = dayPaid(d), o = sumType(l,'PTO') + sumType(l,'Holiday');
-    paid += p; pto += o; lunch += c ? (+c.LunchMin || 0) / 60 : sumType(l, 'Break');
+    paid += p; pto += o; lunch += entryBreaks(d) / 60 + sumType(l, 'Break');
     const dow = parse(d).getDay(), name = DOW[dow];
     const work = l.filter(e => e.Type === 'Job' || e.Type === 'Shop' || e.Type === 'Travel');
     if (!l.length && !c && dow !== 0 && dow !== 6 && d < todayISO()) empty.push(name);
-    if (work.length && !c) problems.push(`${name}: add your In / Out / Lunch`);
-    if (c && !c.End) problems.push(`${name}: add your Out time`);
+
     l.filter(e => isWork(e) && e.Start && !e.End).forEach(e => problems.push(`${name}: ${e.JobNo || e.Type} has no end time`));
-    const bal = dayBalance(d);
-    if (bal !== null && bal > 0.009) problems.push(`${name}: ${fmtH(bal)} hrs not assigned to a job`);
-    if (bal !== null && bal < -0.009) problems.push(`${name}: jobs add up to ${fmtH(-bal)} hrs more than your day`);
-    rows.push(`<tr><td>${fmtLong(d)}${c ? `<div style="font-size:12px;color:var(--ink2)">${to12(c.Start)}–${c.End ? to12(c.End) : '?'} · lunch ${fmtLunch(c.LunchMin)}</div>` : ''}</td><td>${l.length || c ? fmtH(p + o) : '—'}</td></tr>`);
+
+    rows.push(`<tr><td>${fmtLong(d)}</td><td>${l.length ? fmtH(p + o) : '—'}</td></tr>`);
   }
   const ot = Math.max(0, paid - (S.settings.OTThreshold || 40));
   const jobs = {};
@@ -1050,7 +1036,7 @@ function openSubmit(){
     <table class="sumtbl">${rows.join('')}
       <tr class="total"><td>Paid hours${ot ? ` <span style="color:var(--warn)">(${fmtH(ot)} OT)</span>` : ''}</td><td>${fmtH(paid)}</td></tr>
       ${pto ? `<tr><td>PTO / Holiday</td><td>${fmtH(pto)}</td></tr>` : ''}
-      <tr><td style="color:var(--ink2)">Lunch (unpaid)</td><td style="color:var(--ink2)">${fmtH(lunch)}</td></tr></table>
+      <tr><td style="color:var(--ink2)">Breaks (unpaid)</td><td style="color:var(--ink2)">${fmtH(lunch)}</td></tr></table>
     <div class="jobsec">Hours by job</div>
     <table class="sumtbl">${Object.keys(jobs).sort().map(k => `<tr><td class="num">${esc(k)}</td><td>${fmtH(jobs[k])}</td></tr>`).join('') || '<tr><td>No job time</td><td></td></tr>'}</table>
     <p style="font-size:13px;color:var(--ink2)">By submitting, you confirm these hours are accurate. Once submitted, only the office can make changes.</p>
